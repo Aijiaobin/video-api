@@ -156,7 +156,7 @@ export const shareApi = {
   list: (params: ShareListParams) => http.get<ShareListResponse>('/admin/shares', { params }),
   audit: (id: number, data: { status: string; reason?: string }) => http.post(`/admin/shares/${id}/audit`, data),
   batchAudit: (ids: number[], status: string, reason?: string) =>
-    http.post('/admin/shares/batch-audit', null, { params: { share_ids: ids, status, reason } }),
+    http.post('/admin/shares/batch-audit', { share_ids: ids, status, reason }),  // ✅ 改为请求体
   delete: (id: number) => http.delete(`/admin/shares/${id}`),
   batchImport: (shares: BatchShareItem[]) => http.post<BatchImportResponse>('/user/shares/batch', { shares }),
   reparse: (id: number) => http.post(`/admin/shares/${id}/reparse`),
