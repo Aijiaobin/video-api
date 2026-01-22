@@ -217,11 +217,20 @@ async function loadRoles() {
 async function loadPermissions() {
   try {
     const response = await axios.get('/admin/roles/permissions/grouped')
+    console.log('Permissions response:', response.data)
     groupedPermissions.value = response.data
 
     // 展平为数组
-    allPermissions.value = Object.values(response.data).flat()
+    const allPerms: Permission[] = []
+    for (const group in response.data) {
+      if (Array.isArray(response.data[group])) {
+        allPerms.push(...response.data[group])
+      }
+    }
+    allPermissions.value = allPerms
+    console.log('All permissions loaded:', allPerms.length)
   } catch (error: any) {
+    console.error('Load permissions error:', error)
     ElMessage.error(error.response?.data?.detail || '加载权限列表失败')
   }
 }
