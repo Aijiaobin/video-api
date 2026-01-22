@@ -3,6 +3,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..models.models import MediaMetadata, TvSeason, TvEpisode
+from ..models.app_version import SystemConfig
 import json
 
 settings = get_settings()
@@ -14,11 +15,19 @@ TMDB_STILL_BASE = "https://image.tmdb.org/t/p/w300"  # 剧照尺寸
 
 class TMDBService:
     """TMDB 刮削服务 - 带本地缓存"""
-    
+
     def __init__(self, db: Session):
         self.db = db
-        self.api_key = settings.tmdb_api_key
         self.base_url = settings.tmdb_base_url
+        # 从数据库读取 TMDB API Key
+        self.api_key = self._get_tmdb_api_key()
+
+    def _get_tmdb_api_key(self) -> str:
+        """从数据库系统配置表读取 TMDB API Key"""
+        config = self.db.query(SystemConfig).filter(
+            SystemConfig.config_key == "tmdb_api_key"
+        ).first()
+        return config.config_value if config else ""
     
     async def search_and_cache(
         self, 

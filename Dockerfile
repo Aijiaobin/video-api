@@ -21,11 +21,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 安装系统依赖
+# 安装系统依赖（移除 MySQL 相关依赖）
 RUN apt-get update && apt-get install -y \
     gcc \
-    default-libmysqlclient-dev \
-    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制 requirements.txt
@@ -41,6 +39,9 @@ COPY scripts/ ./scripts/
 
 # 从前端构建阶段复制构建产物
 COPY --from=frontend-builder /app/admin-frontend/dist ./admin-frontend/dist
+
+# 创建数据目录
+RUN mkdir -p /app/data
 
 # 创建非 root 用户
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app

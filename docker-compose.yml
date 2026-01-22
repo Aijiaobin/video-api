@@ -1,28 +1,7 @@
 version: '3.8'
 
 services:
-  # MySQL 数据库
-  mysql:
-    image: mysql:8.0
-    container_name: video-api-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: video
-      MYSQL_USER: videouser
-      MYSQL_PASSWORD: videopassword
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./migrations:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Redis 缓存
+  # Redis 缓存（可选）
   redis:
     image: redis:7-alpine
     container_name: video-api-redis
@@ -47,17 +26,15 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: mysql+pymysql://videouser:videopassword@mysql:3306/video
+      DATABASE_URL: sqlite:///./data/video.db
       REDIS_URL: redis://redis:6379/0
-      TMDB_API_KEY: ${TMDB_API_KEY}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-default-secret-key-change-me}
     depends_on:
-      mysql:
-        condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
       - ./app:/app/app
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -65,6 +42,5 @@ services:
       retries: 3
 
 volumes:
-  mysql_data:
   redis_data:
 
