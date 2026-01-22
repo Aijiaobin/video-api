@@ -10,7 +10,7 @@ from ..models.user import User, Role, Permission
 from ..schemas.user import (
     UserBase, UserDetail, UserAdminUpdate, UserListResponse,
     ResetPasswordRequest, RoleBase, RoleCreate, RoleDetail,
-    PermissionBase, AssignRolesRequest
+    PermissionBase, AssignRolesRequest, UserAdminCreate
 )
 from ..core.security import get_password_hash
 from ..core.deps import get_current_admin
@@ -19,6 +19,84 @@ router = APIRouter(prefix="/admin/users", tags=["用户管理"])
 
 
 # ========== 用户管理 ==========
+@router.post("", response_model=UserDetail, summary="创建用户")
+async def create_user(
+    user_data: UserAdminCreate,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    创建新用户（管理员）
+
+    - 检查用户名、邮箱、手机号唯一性
+    - 支持设置用户类型和角色
+    - 自动哈希密码
+    """
+    # 检查用户名是否已存在
+    if db.query(User).filter(User.username == user_data.username).first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="用户名已存在"
+        )
+
+    # 检查邮箱是否已存在
+    if user_data.email:
+        if db.query(User).filter(User.email == user_data.email).first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="邮箱已被注册"
+            )
+
+    # 检查手机号是否已存在
+    if user_data.phone:
+        if db.query(User).filter(User.phone == user_data.phone).first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="手机号已被注册"
+            )
+
+    # 创建用户
+    new_user = User(
+        username=user_data.username,
+        password_hash=get_password_hash(user_data.password),
+        email=user_data.email,
+        phone=user_data.phone,
+        nickname=user_data.nickname or user_data.username,
+        user_type=user_data.user_type,
+        is_active=user_data.is_active,
+        is_verified=True  # 管理员创建的用户默认已验证
+    )
+
+    # 分配角色
+    if user_data.role_ids:
+        roles = db.query(Role).filter(Role.id.in_(user_data.role_ids)).all()
+        new_user.roles = roles
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return UserDetail(
+        id=new_user.id,
+        username=new_user.username,
+        email=new_user.email,
+        phone=new_user.phone,
+        nickname=new_user.nickname,
+        avatar_url=new_user.avatar_url,
+        user_type=new_user.user_type,
+        is_active=new_user.is_active,
+        is_verified=new_user.is_verified,
+        share_count=new_user.share_count,
+        created_at=new_user.created_at,
+        vip_expire_at=new_user.vip_expire_at,
+        login_count=new_user.login_count,
+        last_login_at=new_user.last_login_at,
+        last_login_ip=new_user.last_login_ip,
+        updated_at=new_user.updated_at,
+        roles=[role.name for role in new_user.roles]
+    )
+
+
 @router.get("", response_model=UserListResponse, summary="获取用户列表")
 async def list_users(
     page: int = Query(1, ge=1, description="页码"),

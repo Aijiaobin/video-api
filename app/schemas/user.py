@@ -148,3 +148,15 @@ class AssignRolesRequest(BaseModel):
     """分配角色请求"""
     role_ids: List[int]
 
+
+class UserAdminCreate(BaseModel):
+    """管理员创建用户请求"""
+    username: str = Field(..., min_length=3, max_length=50, description="用户名")
+    password: str = Field(..., min_length=6, max_length=100, description="密码")
+    email: Optional[EmailStr] = Field(None, description="邮箱")
+    phone: Optional[str] = Field(None, max_length=20, description="手机号")
+    nickname: Optional[str] = Field(None, max_length=100, description="昵称")
+    user_type: str = Field("user", description="用户类型: user, vip, admin")
+    is_active: bool = Field(True, description="是否启用")
+    role_ids: Optional[List[int]] = Field(None, description="角色ID列表")
+

@@ -53,6 +53,8 @@ export interface UserListResponse {
 export const userApi = {
   list: (params: UserListParams) => http.get<UserListResponse>('/admin/users', { params }),
   get: (id: number) => http.get<UserInfo>(`/admin/users/${id}`),
+  create: (data: { username: string; password: string; email?: string; phone?: string; nickname?: string; user_type?: string; is_active?: boolean; role_ids?: number[] }) =>
+    http.post<UserInfo>('/admin/users', data),
   update: (id: number, data: Partial<UserInfo>) => http.put(`/admin/users/${id}`, data),
   disable: (id: number) => http.post(`/admin/users/${id}/disable`),
   enable: (id: number) => http.post(`/admin/users/${id}/enable`),

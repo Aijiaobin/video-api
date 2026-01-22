@@ -4,6 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>用户管理</span>
+          <el-button type="primary" @click="handleAdd">添加用户</el-button>
         </div>
       </template>
 
@@ -75,6 +76,44 @@
       </div>
     </el-card>
 
+    <!-- 添加用户对话框 -->
+    <el-dialog v-model="addDialogVisible" title="添加用户" width="500px">
+      <el-form ref="addFormRef" :model="addForm" :rules="addRules" label-width="100px">
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="addForm.username" placeholder="3-50个字符" />
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input v-model="addForm.password" type="password" show-password placeholder="至少6个字符" />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="addForm.confirmPassword" type="password" show-password placeholder="再次输入密码" />
+        </el-form-item>
+        <el-form-item label="昵称" prop="nickname">
+          <el-input v-model="addForm.nickname" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="addForm.email" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="addForm.phone" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="用户类型" prop="user_type">
+          <el-select v-model="addForm.user_type" style="width: 100%">
+            <el-option label="普通用户" value="user" />
+            <el-option label="VIP用户" value="vip" />
+            <el-option label="管理员" value="admin" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态" prop="is_active">
+          <el-switch v-model="addForm.is_active" active-text="启用" inactive-text="禁用" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveAdd">确定</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 编辑对话框 -->
     <el-dialog v-model="editDialogVisible" title="编辑用户" width="500px">
       <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="80px">
@@ -111,12 +150,51 @@ import dayjs from 'dayjs'
 
 const loading = ref(false)
 const tableData = ref<UserInfo[]>([])
+const addDialogVisible = ref(false)
 const editDialogVisible = ref(false)
+const addFormRef = ref<FormInstance>()
 const editFormRef = ref<FormInstance>()
 
 const searchParams = reactive({ keyword: '', user_type: '', is_active: undefined as boolean | undefined })
 const pagination = reactive({ page: 1, page_size: 20, total: 0 })
+const addForm = reactive({
+  username: '',
+  password: '',
+  confirmPassword: '',
+  nickname: '',
+  email: '',
+  phone: '',
+  user_type: 'user',
+  is_active: true
+})
 const editForm = reactive({ id: 0, username: '', nickname: '', email: '', user_type: '' })
+
+const validateConfirmPassword = (rule: any, value: any, callback: any) => {
+  if (value === '') {
+    callback(new Error('请再次输入密码'))
+  } else if (value !== addForm.password) {
+    callback(new Error('两次输入密码不一致'))
+  } else {
+    callback()
+  }
+}
+
+const addRules: FormRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 50, message: '用户名长度在 3 到 50 个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, max: 100, message: '密码长度至少 6 个字符', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, validator: validateConfirmPassword, trigger: 'blur' }
+  ],
+  user_type: [
+    { required: true, message: '请选择用户类型', trigger: 'change' }
+  ]
+}
 
 const editRules: FormRules = {
   nickname: [{ max: 50, message: '昵称不能超过50个字符', trigger: 'blur' }],
@@ -161,6 +239,48 @@ function resetSearch() {
   pagination.page = 1
   loadData()
 }
+
+onMounted(() => {
+  loadData()
+})
+
+function handleAdd() {
+  Object.assign(addForm, {
+    username: '',
+    password: '',
+    confirmPassword: '',
+    nickname: '',
+    email: '',
+    phone: '',
+    user_type: 'user',
+    is_active: true
+  })
+  addDialogVisible.value = true
+}
+
+async function handleSaveAdd() {
+  if (!addFormRef.value) return
+  await addFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    try {
+      await userApi.create({
+        username: addForm.username,
+        password: addForm.password,
+        email: addForm.email || undefined,
+        phone: addForm.phone || undefined,
+        nickname: addForm.nickname || undefined,
+        user_type: addForm.user_type,
+        is_active: addForm.is_active
+      })
+      ElMessage.success('用户创建成功')
+      addDialogVisible.value = false
+      loadData()
+    } catch (e: any) {
+      ElMessage.error(e.response?.data?.detail || '创建失败')
+    }
+  })
+}
+
 
 function handleEdit(row: UserInfo) {
   Object.assign(editForm, { id: row.id, username: row.username, nickname: row.nickname, email: row.email, user_type: row.user_type })
