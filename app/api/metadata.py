@@ -8,7 +8,7 @@ from ..models.models import MediaMetadata, TvSeason, TvEpisode
 from ..schemas.schemas import MetadataSearchRequest, MetadataResponse, SeasonResponse, EpisodeResponse
 from ..services.tmdb_service import TMDBService
 
-router = APIRouter(prefix="/api/metadata", tags=["metadata"])
+router = APIRouter(prefix="/metadata", tags=["metadata"])
 
 
 @router.get("/search", response_model=Optional[MetadataResponse])

@@ -13,7 +13,7 @@ from ..models.models import ShareLink, MediaMetadata
 from ..models.app_version import AppVersion
 from ..core.deps import get_current_admin
 
-router = APIRouter(prefix="/api/admin/stats", tags=["数据统计"])
+router = APIRouter(prefix="/admin/stats", tags=["数据统计"])
 
 
 # ========== Schemas ==========

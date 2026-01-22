@@ -16,7 +16,7 @@ from ..core.security import (
 )
 from ..core.deps import get_current_user
 
-router = APIRouter(prefix="/api/auth", tags=["认证"])
+router = APIRouter(prefix="/auth", tags=["认证"])
 
 
 @router.post("/register", response_model=UserBase, summary="用户注册")

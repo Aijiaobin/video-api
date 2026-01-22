@@ -53,7 +53,7 @@ class ShareAdminListResponse(BaseModel):
 
 
 # ========== 用户分享管理 ==========
-user_router = APIRouter(prefix="/api/user/shares")
+user_router = APIRouter(prefix="/user/shares")
 
 
 @user_router.get("", summary="获取我的分享列表")

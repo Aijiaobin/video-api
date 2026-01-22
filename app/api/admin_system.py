@@ -18,7 +18,7 @@ router = APIRouter(tags=["系统管理"])
 
 
 # ========== 公告管理（管理员） ==========
-admin_announcement_router = APIRouter(prefix="/api/admin/announcements")
+admin_announcement_router = APIRouter(prefix="/admin/announcements")
 
 
 @admin_announcement_router.get("", response_model=AnnouncementListResponse, summary="获取公告列表")
@@ -126,7 +126,7 @@ async def delete_announcement(
 
 
 # ========== 系统配置（管理员） ==========
-admin_config_router = APIRouter(prefix="/api/admin/configs")
+admin_config_router = APIRouter(prefix="/admin/configs")
 
 
 @admin_config_router.get("", response_model=SystemConfigListResponse, summary="获取配置列表")

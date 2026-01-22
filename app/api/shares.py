@@ -12,7 +12,7 @@ from ..services.share_parser import tianyi_parser, clean_share_url, extract_pass
 from ..services.tmdb_service import TMDBService
 import json
 
-router = APIRouter(prefix="/api/shares", tags=["shares"])
+router = APIRouter(prefix="/shares", tags=["shares"])
 
 
 def get_or_create_sharer(db: Session, sharer_info: dict, drive_type: str) -> Optional[Sharer]:

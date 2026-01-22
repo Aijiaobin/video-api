@@ -15,7 +15,7 @@ from ..schemas.user import (
 from ..core.security import get_password_hash
 from ..core.deps import get_current_admin
 
-router = APIRouter(prefix="/api/admin/users", tags=["用户管理"])
+router = APIRouter(prefix="/admin/users", tags=["用户管理"])
 
 
 # ========== 用户管理 ==========

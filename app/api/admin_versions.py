@@ -17,7 +17,7 @@ router = APIRouter(tags=["APP版本管理"])
 
 
 # ========== 管理员接口 ==========
-admin_router = APIRouter(prefix="/api/admin/versions")
+admin_router = APIRouter(prefix="/admin/versions")
 
 
 @admin_router.get("", response_model=AppVersionListResponse, summary="获取版本列表")
