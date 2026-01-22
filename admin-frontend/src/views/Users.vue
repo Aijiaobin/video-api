@@ -104,6 +104,16 @@
             <el-option label="管理员" value="admin" />
           </el-select>
         </el-form-item>
+        <el-form-item label="角色" prop="role_ids">
+          <el-select v-model="addForm.role_ids" multiple placeholder="选择角色" style="width: 100%">
+            <el-option
+              v-for="role in availableRoles"
+              :key="role.id"
+              :label="role.display_name"
+              :value="role.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="状态" prop="is_active">
           <el-switch v-model="addForm.is_active" active-text="启用" inactive-text="禁用" />
         </el-form-item>
@@ -133,6 +143,16 @@
             <el-option label="VIP用户" value="vip" />
           </el-select>
         </el-form-item>
+        <el-form-item label="角色" prop="role_ids">
+          <el-select v-model="editForm.role_ids" multiple placeholder="选择角色" style="width: 100%">
+            <el-option
+              v-for="role in availableRoles"
+              :key="role.id"
+              :label="role.display_name"
+              :value="role.id"
+            />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
@@ -147,6 +167,15 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { userApi, type UserInfo } from '@/api'
 import dayjs from 'dayjs'
+import axios from '../utils/request'
+
+interface Role {
+  id: number
+  name: string
+  display_name: string
+  description: string
+  is_system: boolean
+}
 
 const loading = ref(false)
 const tableData = ref<UserInfo[]>([])
@@ -154,6 +183,7 @@ const addDialogVisible = ref(false)
 const editDialogVisible = ref(false)
 const addFormRef = ref<FormInstance>()
 const editFormRef = ref<FormInstance>()
+const availableRoles = ref<Role[]>([])
 
 const searchParams = reactive({ keyword: '', user_type: '', is_active: undefined as boolean | undefined })
 const pagination = reactive({ page: 1, page_size: 20, total: 0 })
@@ -165,9 +195,10 @@ const addForm = reactive({
   email: '',
   phone: '',
   user_type: 'user',
-  is_active: true
+  is_active: true,
+  role_ids: [] as number[]
 })
-const editForm = reactive({ id: 0, username: '', nickname: '', email: '', user_type: '' })
+const editForm = reactive({ id: 0, username: '', nickname: '', email: '', user_type: '', role_ids: [] as number[] })
 
 const validateConfirmPassword = (rule: any, value: any, callback: any) => {
   if (value === '') {
@@ -253,7 +284,8 @@ function handleAdd() {
     email: '',
     phone: '',
     user_type: 'user',
-    is_active: true
+    is_active: true,
+    role_ids: []
   })
   addDialogVisible.value = true
 }
@@ -270,7 +302,8 @@ async function handleSaveAdd() {
         phone: addForm.phone || undefined,
         nickname: addForm.nickname || undefined,
         user_type: addForm.user_type,
-        is_active: addForm.is_active
+        is_active: addForm.is_active,
+        role_ids: addForm.role_ids
       })
       ElMessage.success('用户创建成功')
       addDialogVisible.value = false
@@ -281,10 +314,50 @@ async function handleSaveAdd() {
   })
 }
 
+// 加载角色列表
+async function loadRoles() {
+  try {
+    const data = await axios.get('/admin/roles')
+    availableRoles.value = data
+  } catch (error: any) {
+    console.error('Load roles error:', error)
+  }
+}
+
+onMounted(() => {
+  loadData()
+  loadRoles()
+})
 
 function handleEdit(row: UserInfo) {
-  Object.assign(editForm, { id: row.id, username: row.username, nickname: row.nickname, email: row.email, user_type: row.user_type })
-  editDialogVisible.value = true
+  // 加载用户详情以获取角色信息
+  axios.get(`/admin/users/${row.id}`).then((data: any) => {
+    Object.assign(editForm, {
+      id: row.id,
+      username: row.username,
+      nickname: row.nickname,
+      email: row.email,
+      user_type: row.user_type,
+      role_ids: data.roles ? data.roles.map((r: string) => {
+        // 将角色名称转换为角色ID
+        const role = availableRoles.value.find(ar => ar.name === r)
+        return role ? role.id : null
+      }).filter((id: number | null) => id !== null) : []
+    })
+    editDialogVisible.value = true
+  }).catch((error: any) => {
+    console.error('Load user error:', error)
+    // 如果加载失败，使用基本信息
+    Object.assign(editForm, {
+      id: row.id,
+      username: row.username,
+      nickname: row.nickname,
+      email: row.email,
+      user_type: row.user_type,
+      role_ids: []
+    })
+    editDialogVisible.value = true
+  })
 }
 
 async function handleSaveEdit() {
@@ -292,7 +365,17 @@ async function handleSaveEdit() {
   await editFormRef.value.validate(async (valid) => {
     if (!valid) return
     try {
-      await userApi.update(editForm.id, { nickname: editForm.nickname, email: editForm.email, user_type: editForm.user_type })
+      await userApi.update(editForm.id, {
+        nickname: editForm.nickname,
+        email: editForm.email,
+        user_type: editForm.user_type
+      })
+
+      // 分配角色
+      if (editForm.role_ids && editForm.role_ids.length > 0) {
+        await axios.post(`/admin/users/${editForm.id}/roles`, editForm.role_ids)
+      }
+
       ElMessage.success('保存成功')
       editDialogVisible.value = false
       loadData()
