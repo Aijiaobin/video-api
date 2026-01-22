@@ -26,7 +26,7 @@ class BatchShareItem(BaseModel):
 
 class BatchImportRequest(BaseModel):
     """批量导入请求"""
-    shares: List[BatchShareItem] = Field(..., min_length=1, max_length=100)
+    shares: List[BatchShareItem] = Field(..., min_length=1, max_length=1000)  # ✅ 改为1000条
 
 
 class BatchImportResponse(BaseModel):
@@ -40,6 +40,13 @@ class BatchImportResponse(BaseModel):
 
 class ShareAuditRequest(BaseModel):
     """审核请求"""
+    status: str = Field(..., description="审核状态: approved/rejected")
+    reason: Optional[str] = Field(None, description="拒绝原因")
+
+
+class BatchAuditRequest(BaseModel):
+    """批量审核请求"""
+    share_ids: List[int] = Field(..., description="分享ID列表")
     status: str = Field(..., description="审核状态: approved/rejected")
     reason: Optional[str] = Field(None, description="拒绝原因")
 
@@ -301,25 +308,23 @@ async def audit_share(
 
 @admin_router.post("/batch-audit", summary="批量审核")
 async def batch_audit_shares(
-    share_ids: List[int],
-    status: str = Query(..., description="审核状态: approved/rejected"),
-    reason: Optional[str] = Query(None, description="拒绝原因"),
+    request: BatchAuditRequest,  # ✅ 改为使用请求体
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """批量审核分享（管理员）"""
-    shares = db.query(ShareLink).filter(ShareLink.id.in_(share_ids)).all()
-    
-    new_status = "active" if status == "approved" else "rejected"
+    shares = db.query(ShareLink).filter(ShareLink.id.in_(request.share_ids)).all()
+
+    new_status = "active" if request.status == "approved" else "rejected"
     for share in shares:
         share.status = new_status
-        if status == "rejected":
-            share.reject_reason = reason
+        if request.status == "rejected":
+            share.reject_reason = request.reason
         share.audited_at = datetime.utcnow()
         share.audited_by = current_admin.id
-    
+
     db.commit()
-    
+
     return {"message": f"已审核 {len(shares)} 个分享", "status": new_status}
 
 
