@@ -214,7 +214,7 @@ async def delete_config(
 
 
 # ========== 公开接口（APP调用） ==========
-public_router = APIRouter(prefix="/api/public")
+public_router = APIRouter(prefix="/public")
 
 
 @public_router.get("/announcements", response_model=list[AnnouncementResponse], summary="获取有效公告")

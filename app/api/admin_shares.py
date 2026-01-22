@@ -199,7 +199,7 @@ async def delete_my_share(
 
 
 # ========== 管理员分享管理 ==========
-admin_router = APIRouter(prefix="/api/admin/shares")
+admin_router = APIRouter(prefix="/admin/shares")
 
 
 @admin_router.get("", summary="获取分享列表（管理员）")

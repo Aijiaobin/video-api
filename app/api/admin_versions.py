@@ -182,7 +182,7 @@ async def delete_version(
 
 
 # ========== 公开接口（APP调用） ==========
-public_router = APIRouter(prefix="/api/app")
+public_router = APIRouter(prefix="/app")
 
 
 @public_router.post("/check-update", response_model=CheckUpdateResponse, summary="检查更新")
