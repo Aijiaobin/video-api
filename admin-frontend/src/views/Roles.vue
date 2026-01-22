@@ -204,8 +204,8 @@ const rules = {
 async function loadRoles() {
   loading.value = true
   try {
-    const response = await axios.get('/admin/roles')
-    roles.value = response.data
+    const data = await axios.get('/admin/roles')
+    roles.value = data
   } catch (error: any) {
     ElMessage.error(error.response?.data?.detail || '加载角色列表失败')
   } finally {
@@ -216,15 +216,15 @@ async function loadRoles() {
 // 加载所有权限
 async function loadPermissions() {
   try {
-    const response = await axios.get('/admin/roles/permissions/grouped')
-    console.log('Permissions response:', response.data)
-    groupedPermissions.value = response.data
+    const data = await axios.get('/admin/roles/permissions/grouped')
+    console.log('Permissions data:', data)
+    groupedPermissions.value = data
 
     // 展平为数组
     const allPerms: Permission[] = []
-    for (const group in response.data) {
-      if (Array.isArray(response.data[group])) {
-        allPerms.push(...response.data[group])
+    for (const group in data) {
+      if (Array.isArray(data[group])) {
+        allPerms.push(...data[group])
       }
     }
     allPermissions.value = allPerms
