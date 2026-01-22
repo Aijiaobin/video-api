@@ -14,6 +14,65 @@ from ..core.deps import get_current_admin
 router = APIRouter(prefix="/admin/roles", tags=["角色权限管理"])
 
 
+# ========== 权限管理（放在前面，避免路由冲突） ==========
+@router.get("/permissions", response_model=List[PermissionBase], summary="获取所有权限列表")
+async def list_all_permissions(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    获取所有权限列表
+
+    - 按权限组和名称排序
+    """
+    permissions = db.query(Permission).order_by(Permission.group, Permission.name).all()
+
+    return [
+        PermissionBase(
+            id=perm.id,
+            name=perm.name,
+            display_name=perm.display_name,
+            description=perm.description,
+            group=perm.group
+        ) for perm in permissions
+    ]
+
+
+@router.get("/permissions/grouped", response_model=Dict[str, List[PermissionBase]], summary="获取分组权限列表")
+async def list_permissions_grouped(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    获取按组分类的权限列表
+
+    返回格式：
+    {
+        "share": [...],
+        "user": [...],
+        "system": [...]
+    }
+    """
+    permissions = db.query(Permission).order_by(Permission.group, Permission.name).all()
+
+    grouped = {}
+    for perm in permissions:
+        group = perm.group or "other"
+        if group not in grouped:
+            grouped[group] = []
+        grouped[group].append(
+            PermissionBase(
+                id=perm.id,
+                name=perm.name,
+                display_name=perm.display_name,
+                description=perm.description,
+                group=perm.group
+            )
+        )
+
+    return grouped
+
+
 # ========== 角色管理 ==========
 @router.get("", response_model=List[RoleDetail], summary="获取角色列表")
 async def list_roles(
@@ -23,17 +82,17 @@ async def list_roles(
 ):
     """
     获取所有角色列表（包含权限）
-    
+
     - 支持筛选系统角色
     - 返回角色及其关联的权限列表
     """
     query = db.query(Role)
-    
+
     if not include_system:
         query = query.filter(Role.is_system == False)
-    
+
     roles = query.order_by(Role.is_system.desc(), Role.id).all()
-    
+
     return [
         RoleDetail(
             id=role.id,
