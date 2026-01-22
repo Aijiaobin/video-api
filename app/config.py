@@ -4,8 +4,8 @@ import os
 
 
 class Settings(BaseSettings):
-    # SQLite 数据库配置 - 默认使用本地文件
-    database_url: str = "sqlite:///./video.db"
+    # SQLite 数据库配置 - 默认使用 data 目录下的文件
+    database_url: str = "sqlite:////app/data/video.db"
 
     # TMDB API 配置 - 从数据库系统配置表读取，不再从环境变量读取
     tmdb_base_url: str = "https://api.themoviedb.org/3"
