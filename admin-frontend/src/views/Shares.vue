@@ -366,8 +366,8 @@ async function handleImport() {
     return
   }
 
-  if (shares.length > 100) {
-    ElMessage.warning('单次最多导入100个链接')
+  if (shares.length > 1000) {  // ✅ 改为1000
+    ElMessage.warning('单次最多导入1000个链接')
     return
   }
 
