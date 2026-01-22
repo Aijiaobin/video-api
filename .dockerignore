@@ -39,7 +39,6 @@ MANIFEST
 
 # 测试和日志
 *.log
-*.txt
 .pytest_cache/
 .coverage
 htmlcov/
