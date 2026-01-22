@@ -202,7 +202,7 @@ async def delete_my_share(
 admin_router = APIRouter(prefix="/admin/shares")
 
 
-@admin_router.get("", summary="获取分享列表（管理员）")
+@admin_router.get("", summary="获取分享列表")
 async def admin_list_shares(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -210,12 +210,24 @@ async def admin_list_shares(
     drive_type: Optional[str] = Query(None, description="网盘类型"),
     keyword: Optional[str] = Query(None, description="搜索关键词"),
     submitter_id: Optional[int] = Query(None, description="提交者ID"),
-    current_admin: User = Depends(get_current_admin),
+    current_user: User = Depends(get_current_user),  # ✅ 改为 get_current_user，允许所有登录用户访问
     db: Session = Depends(get_db)
 ):
-    """获取所有分享列表（管理员）"""
+    """
+    获取分享列表
+
+    权限说明：
+    - 管理员：查看所有分享（包括待审核、已拒绝等）
+    - 普通用户/VIP：只能查看自己提交的分享
+    """
     query = db.query(ShareLink)
-    
+
+    # ✅ 根据用户类型过滤数据
+    if current_user.user_type != "admin":
+        # 非管理员只能查看自己的分享
+        query = query.filter(ShareLink.submitter_id == current_user.id)
+
+    # 其他筛选条件
     if status:
         query = query.filter(ShareLink.status == status)
     if drive_type:
@@ -226,19 +238,24 @@ async def admin_list_shares(
             (ShareLink.clean_title.ilike(f"%{keyword}%"))
         )
     if submitter_id:
-        query = query.filter(ShareLink.submitter_id == submitter_id)
-    
+        # 只有管理员可以按提交者ID筛选
+        if current_user.user_type == "admin":
+            query = query.filter(ShareLink.submitter_id == submitter_id)
+
     total = query.count()
     shares = query.order_by(ShareLink.created_at.desc()) \
         .offset((page - 1) * page_size) \
         .limit(page_size) \
         .all()
-    
+
+    # 管理员返回完整信息（包括提交者），普通用户不需要
+    include_submitter = current_user.user_type == "admin"
+
     return {
         "total": total,
         "page": page,
         "page_size": page_size,
-        "items": [_share_to_dict(s, include_submitter=True) for s in shares]
+        "items": [_share_to_dict(s, include_submitter=include_submitter) for s in shares]
     }
 
 
@@ -246,14 +263,27 @@ async def admin_list_shares(
 async def audit_share(
     share_id: int,
     audit: ShareAuditRequest,
-    current_admin: User = Depends(get_current_admin),
+    current_user: User = Depends(get_current_user),  # ✅ 改为 get_current_user
     db: Session = Depends(get_db)
 ):
-    """审核分享（管理员）"""
+    """
+    审核分享
+
+    权限说明：
+    - VIP用户：只能审核自己提交的分享
+    - 管理员：可以审核所有分享
+    """
     share = db.query(ShareLink).filter(ShareLink.id == share_id).first()
     if not share:
         raise HTTPException(status_code=404, detail="分享不存在")
-    
+
+    # ✅ 权限检查：VIP只能审核自己的分享，管理员可以审核所有分享
+    if current_user.user_type == "vip":
+        if share.submitter_id != current_user.id:
+            raise HTTPException(status_code=403, detail="只能审核自己提交的分享")
+    elif current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="需要VIP或管理员权限")
+
     if audit.status == "approved":
         share.status = "active"
     elif audit.status == "rejected":
@@ -261,11 +291,11 @@ async def audit_share(
         share.reject_reason = audit.reason
     else:
         raise HTTPException(status_code=400, detail="无效的审核状态")
-    
+
     share.audited_at = datetime.utcnow()
-    share.audited_by = current_admin.id
+    share.audited_by = current_user.id
     db.commit()
-    
+
     return {"message": "审核完成", "status": share.status}
 
 
@@ -293,18 +323,36 @@ async def batch_audit_shares(
     return {"message": f"已审核 {len(shares)} 个分享", "status": new_status}
 
 
-@admin_router.delete("/{share_id}", summary="删除分享（管理员）")
+@admin_router.delete("/{share_id}", summary="删除分享")
 async def admin_delete_share(
     share_id: int,
-    current_admin: User = Depends(get_current_admin),
+    current_user: User = Depends(get_current_user),  # ✅ 改为 get_current_user
     db: Session = Depends(get_db)
 ):
-    """删除分享（管理员）"""
+    """
+    删除分享（真正删除，不是标记）
+
+    权限说明：
+    - 普通用户/VIP：只能删除自己提交的分享
+    - 管理员：可以删除任何分享
+    """
     share = db.query(ShareLink).filter(ShareLink.id == share_id).first()
     if not share:
         raise HTTPException(status_code=404, detail="分享不存在")
 
-    share.status = "deleted"
+    # ✅ 权限检查：只能删除自己的分享，管理员除外
+    if current_user.user_type != "admin" and share.submitter_id != current_user.id:
+        raise HTTPException(status_code=403, detail="只能删除自己提交的分享")
+
+    # ✅ 真正删除记录，而不是标记为deleted
+    db.delete(share)
+
+    # 更新用户分享计数
+    if share.submitter_id:
+        submitter = db.query(User).filter(User.id == share.submitter_id).first()
+        if submitter:
+            submitter.share_count = max(0, submitter.share_count - 1)
+
     db.commit()
 
     return {"message": "删除成功"}
@@ -314,13 +362,26 @@ async def admin_delete_share(
 async def reparse_share(
     share_id: int,
     background_tasks: BackgroundTasks,
-    current_admin: User = Depends(get_current_admin),
+    current_user: User = Depends(get_current_user),  # ✅ 改为 get_current_user
     db: Session = Depends(get_db)
 ):
-    """重新解析单个分享链接，更新标题和元数据"""
+    """
+    重新解析单个分享链接，更新标题和元数据
+
+    权限说明：
+    - VIP用户：可以解析自己提交的分享
+    - 管理员：可以解析所有分享
+    """
     share = db.query(ShareLink).filter(ShareLink.id == share_id).first()
     if not share:
         raise HTTPException(status_code=404, detail="分享不存在")
+
+    # ✅ 权限检查：VIP只能解析自己的分享，管理员可以解析所有分享
+    if current_user.user_type == "vip":
+        if share.submitter_id != current_user.id:
+            raise HTTPException(status_code=403, detail="只能解析自己提交的分享")
+    elif current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="需要VIP或管理员权限")
 
     from .shares import parse_and_update_share
     background_tasks.add_task(

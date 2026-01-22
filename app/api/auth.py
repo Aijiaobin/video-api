@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from ..database import get_db
-from ..models.user import User, Role, UserToken
+from ..models.user import User, UserToken
 from ..schemas.user import (
     UserRegister, UserLogin, TokenResponse, RefreshTokenRequest,
     ChangePasswordRequest, UserBase, UserDetail, UserUpdate
@@ -185,8 +185,7 @@ async def get_me(
         login_count=current_user.login_count,
         last_login_at=current_user.last_login_at,
         last_login_ip=current_user.last_login_ip,
-        updated_at=current_user.updated_at,
-        roles=[role.name for role in current_user.roles]
+        updated_at=current_user.updated_at
     )
 
 

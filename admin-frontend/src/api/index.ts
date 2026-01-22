@@ -19,11 +19,12 @@ export interface UserInfo {
   nickname: string
   email: string
   avatar_url: string
-  user_type: string
+  user_type: 'user' | 'vip' | 'admin'  // ✅ 明确类型定义
   is_active: boolean
   share_count: number
   created_at: string
-  roles: Array<{ id: number; name: string; display_name: string }>
+  vip_expire_at?: string  // ✅ VIP过期时间
+  // ❌ 删除 roles 字段（不再需要）
 }
 
 export const authApi = {

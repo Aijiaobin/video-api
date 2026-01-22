@@ -1,9 +1,9 @@
 from .models import MediaMetadata, Sharer, TvSeason, TvEpisode, ShareLink, ShareFile
-from .user import User, Role, Permission, UserToken, user_roles, role_permissions
+from .user import User, UserToken
 from .app_version import AppVersion, Announcement, SystemConfig
 
 __all__ = [
     "MediaMetadata", "Sharer", "TvSeason", "TvEpisode", "ShareLink", "ShareFile",
-    "User", "Role", "Permission", "UserToken", "user_roles", "role_permissions",
+    "User", "UserToken",
     "AppVersion", "Announcement", "SystemConfig"
 ]

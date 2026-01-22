@@ -11,7 +11,7 @@ from ..schemas.schemas import (
 )
 from ..services.share_parser import tianyi_parser, clean_share_url, extract_password_from_text
 from ..services.tmdb_service import TMDBService
-from ..core.deps import get_current_user_optional
+from ..core.deps import get_current_user, get_current_user_optional, require_permission
 import json
 
 router = APIRouter(prefix="/shares", tags=["shares"])
@@ -178,10 +178,11 @@ async def scrape_collection_files(db: Session, share: ShareLink):
 async def create_share(
     share: ShareLinkCreate,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_permission("share:create")),  # ✅ 需要登录和创建权限
     db: Session = Depends(get_db)
 ):
     """
-    提交分享链接
+    提交分享链接（需要登录）
 
     请求体:
     - drive_type: 网盘类型 (tianyi=天翼云盘, aliyun=阿里云盘, quark=夸克网盘)
@@ -226,10 +227,12 @@ async def create_share(
         # 如果已存在，直接返回现有的
         return _to_response(existing, db)
 
+    # ✅ 创建分享并记录提交者
     db_share = ShareLink(
         drive_type=share.drive_type,
         share_url=cleaned_url,
-        password=password
+        password=password,
+        submitter_id=current_user.id  # ✅ 记录提交者ID
     )
     db.add(db_share)
     db.commit()
@@ -408,12 +411,20 @@ async def get_share(
 @router.delete("/{share_id}")
 async def delete_share(
     share_id: int,
+    current_user: User = Depends(get_current_user),  # ✅ 需要登录
     db: Session = Depends(get_db)
 ):
-    """删除分享"""
+    """删除分享（需要登录，只能删除自己的分享，管理员除外）"""
     share = db.query(ShareLink).filter(ShareLink.id == share_id).first()
     if not share:
         raise HTTPException(status_code=404, detail="分享不存在")
+
+    # ✅ 权限检查：只能删除自己的分享，管理员可以删除任何分享
+    if share.submitter_id != current_user.id and current_user.user_type != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="无权删除此分享（只能删除自己创建的分享）"
+        )
 
     share.status = "deleted"
     db.commit()

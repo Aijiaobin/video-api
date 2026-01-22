@@ -28,12 +28,6 @@
             <template #title>用户管理</template>
           </el-menu-item>
 
-          <!-- 角色权限 - 仅管理员可见 -->
-          <el-menu-item v-if="isAdmin" index="/roles">
-            <el-icon><Lock /></el-icon>
-            <template #title>角色权限</template>
-          </el-menu-item>
-
           <!-- 分享管理 - 所有用户可见 -->
           <el-menu-item index="/shares">
             <el-icon><Share /></el-icon>

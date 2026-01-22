@@ -13,6 +13,8 @@ export const useUserStore = defineStore('user', () => {
 
   const isLoggedIn = computed(() => !!token.value)
   const isAdmin = computed(() => userInfo.value?.user_type === 'admin')
+  const isVip = computed(() => userInfo.value?.user_type === 'vip' || isAdmin.value)  // ✅ VIP或管理员
+  const userType = computed(() => userInfo.value?.user_type || '')  // ✅ 导出userType
   const username = computed(() => userInfo.value?.username || '')
   const nickname = computed(() => userInfo.value?.nickname || userInfo.value?.username || '')
 
@@ -57,12 +59,38 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem(USER_KEY)
   }
 
+  // ✅ 修复后的权限检查（基于user_type）
   function hasPermission(permission: string): boolean {
     if (!userInfo.value) return false
+
+    // 管理员拥有所有权限
     if (userInfo.value.user_type === 'admin') return true
-    return userInfo.value.roles?.some(role => 
-      role.name === 'admin' || (role as any).permissions?.some((p: any) => p.name === permission)
-    ) || false
+
+    // 根据用户类型检查权限（与后端保持一致）
+    const userType = userInfo.value.user_type
+
+    // 定义权限映射（与后端 permissions.py 保持一致）
+    const USER_PERMISSIONS = [
+      'share:view', 'share:create', 'share:delete_own', 'share:save',
+      'user:view_own', 'user:update_own', 'stats:view_own'
+    ]
+
+    const VIP_PERMISSIONS = [
+      ...USER_PERMISSIONS,
+      'share:priority', 'share:batch_create', 'share:export',
+      'share:reparse', 'share:audit_own',  // ✅ 新增VIP权限
+      'stats:view_advanced', 'api:rate_limit_high', 'feature:ad_free'
+    ]
+
+    if (userType === 'vip') {
+      return VIP_PERMISSIONS.includes(permission)
+    }
+
+    if (userType === 'user') {
+      return USER_PERMISSIONS.includes(permission)
+    }
+
+    return false
   }
 
   return {
@@ -71,6 +99,8 @@ export const useUserStore = defineStore('user', () => {
     userInfo,
     isLoggedIn,
     isAdmin,
+    isVip,  // ✅ 导出isVip
+    userType,  // ✅ 导出userType
     username,
     nickname,
     setToken,

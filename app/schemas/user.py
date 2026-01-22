@@ -70,7 +70,6 @@ class UserDetail(UserBase):
     last_login_at: Optional[datetime] = None
     last_login_ip: Optional[str] = None
     updated_at: Optional[datetime] = None
-    roles: List[str] = []
 
     class Config:
         from_attributes = True

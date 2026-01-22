@@ -69,22 +69,22 @@ const rules: FormRules = {
 
 async function handleLogin() {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     loading.value = true
     try {
       const user = await userStore.login(form.username, form.password)
-      
-      if (user.user_type !== 'admin') {
-        ElMessage.error('您没有管理员权限')
-        userStore.logout()
-        return
-      }
-      
+
+      // ✅ 移除硬编码的管理员检查，允许所有用户登录
+      // 路由守卫会根据用户类型自动重定向到合适的页面
+
       ElMessage.success('登录成功')
-      const redirect = route.query.redirect as string || '/dashboard'
+
+      // 根据用户类型智能重定向
+      const defaultRedirect = user.user_type === 'admin' ? '/dashboard' : '/shares'
+      const redirect = route.query.redirect as string || defaultRedirect
       router.push(redirect)
     } catch (e: any) {
       ElMessage.error(e.response?.data?.detail || '登录失败')
