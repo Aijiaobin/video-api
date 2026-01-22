@@ -1,0 +1,107 @@
+// 全局样式
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #dcdfe6;
+  border-radius: 3px;
+  
+  &:hover {
+    background-color: #c0c4cc;
+  }
+}
+
+// 布局相关
+.page-container {
+  padding: 20px;
+  background-color: #f5f7fa;
+  min-height: calc(100vh - 60px);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+// 表格操作按钮
+.table-actions {
+  display: flex;
+  gap: 8px;
+}
+
+// 搜索表单
+.search-form {
+  margin-bottom: 20px;
+  
+  .el-form-item {
+    margin-bottom: 10px;
+  }
+}
+
+// 分页
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+// 统计卡片
+.stat-card {
+  .stat-value {
+    font-size: 28px;
+    font-weight: bold;
+    color: #303133;
+  }
+  
+  .stat-label {
+    font-size: 14px;
+    color: #909399;
+    margin-top: 8px;
+  }
+  
+  .stat-trend {
+    font-size: 12px;
+    margin-top: 8px;
+    
+    &.up {
+      color: #67c23a;
+    }
+    
+    &.down {
+      color: #f56c6c;
+    }
+  }
+}
+
+// 状态标签颜色
+.status-active {
+  color: #67c23a;
+}
+
+.status-pending {
+  color: #e6a23c;
+}
+
+.status-rejected {
+  color: #f56c6c;
+}
+
+.status-deleted {
+  color: #909399;
+}
+
