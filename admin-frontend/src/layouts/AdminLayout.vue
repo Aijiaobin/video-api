@@ -16,37 +16,44 @@
           text-color="#bfcbd9"
           active-text-color="#409EFF"
         >
-          <el-menu-item index="/dashboard">
+          <!-- 仪表盘 - 仅管理员可见 -->
+          <el-menu-item v-if="isAdmin" index="/dashboard">
             <el-icon><DataAnalysis /></el-icon>
             <template #title>仪表盘</template>
           </el-menu-item>
 
-          <el-menu-item index="/users">
+          <!-- 用户管理 - 仅管理员可见 -->
+          <el-menu-item v-if="isAdmin" index="/users">
             <el-icon><User /></el-icon>
             <template #title>用户管理</template>
           </el-menu-item>
 
-          <el-menu-item index="/roles">
+          <!-- 角色权限 - 仅管理员可见 -->
+          <el-menu-item v-if="isAdmin" index="/roles">
             <el-icon><Lock /></el-icon>
             <template #title>角色权限</template>
           </el-menu-item>
 
+          <!-- 分享管理 - 所有用户可见 -->
           <el-menu-item index="/shares">
             <el-icon><Share /></el-icon>
             <template #title>分享管理</template>
           </el-menu-item>
 
-          <el-menu-item index="/versions">
+          <!-- 版本管理 - 仅管理员可见 -->
+          <el-menu-item v-if="isAdmin" index="/versions">
             <el-icon><Upload /></el-icon>
             <template #title>版本管理</template>
           </el-menu-item>
 
-          <el-menu-item index="/announcements">
+          <!-- 公告管理 - 仅管理员可见 -->
+          <el-menu-item v-if="isAdmin" index="/announcements">
             <el-icon><Bell /></el-icon>
             <template #title>公告管理</template>
           </el-menu-item>
 
-          <el-menu-item index="/configs">
+          <!-- 系统配置 - 仅管理员可见 -->
+          <el-menu-item v-if="isAdmin" index="/configs">
             <el-icon><Setting /></el-icon>
             <template #title>系统配置</template>
           </el-menu-item>
@@ -130,6 +137,9 @@ const passwordFormRef = ref<FormInstance>()
 
 const currentRoute = computed(() => route.path)
 const currentTitle = computed(() => route.meta.title as string || '')
+
+// 判断是否为管理员
+const isAdmin = computed(() => userStore.userType === 'admin')
 
 const passwordForm = reactive({
   old_password: '',

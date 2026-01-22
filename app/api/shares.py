@@ -4,12 +4,14 @@ from typing import List, Optional
 
 from ..database import get_db
 from ..models.models import ShareLink, ShareFile, MediaMetadata, Sharer
+from ..models.user import User
 from ..schemas.schemas import (
     ShareLinkCreate, ShareLinkResponse, ShareListResponse,
     ShareFileResponse, SharerResponse, MetadataResponse
 )
 from ..services.share_parser import tianyi_parser, clean_share_url, extract_password_from_text
 from ..services.tmdb_service import TMDBService
+from ..core.deps import get_current_user_optional
 import json
 
 router = APIRouter(prefix="/shares", tags=["shares"])
@@ -252,6 +254,7 @@ async def list_shares(
     drive_type: Optional[str] = None,
     share_type: Optional[str] = None,
     keyword: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """
@@ -263,6 +266,11 @@ async def list_shares(
     - drive_type: 网盘类型筛选 (tianyi/aliyun/quark)
     - share_type: 分享类型筛选 (tv/movie/movie_collection)
     - keyword: 关键词搜索 (搜索标题)
+
+    权限说明:
+    - 未登录用户：查看所有已审核通过的分享
+    - 普通用户：只能查看自己提交的分享
+    - 管理员：查看所有分享
 
     返回字段说明:
     - total: 总数量
@@ -282,7 +290,18 @@ async def list_shares(
         - sharer: 分享人信息 {id, sharer_id, nickname, avatar_url, drive_type, share_count}
         - media_info: 影视元数据 {tmdb_id, media_type, title, year, poster_url, rating, genres...}
     """
-    query = db.query(ShareLink).filter(ShareLink.status == "active")
+    query = db.query(ShareLink)
+
+    # 根据用户身份过滤数据
+    if current_user is None:
+        # 未登录用户：只能查看已审核通过的分享
+        query = query.filter(ShareLink.status == "active")
+    elif current_user.user_type != "admin":
+        # 普通用户：只能查看自己提交的分享
+        query = query.filter(ShareLink.submitter_id == current_user.id)
+    else:
+        # 管理员：查看所有分享（包括待审核的）
+        query = query.filter(ShareLink.status == "active")
 
     if drive_type:
         query = query.filter(ShareLink.drive_type == drive_type)
