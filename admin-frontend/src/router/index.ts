@@ -32,6 +32,12 @@ const router = createRouter({
           meta: { title: '用户管理' }
         },
         {
+          path: 'roles',
+          name: 'Roles',
+          component: () => import('@/views/Roles.vue'),
+          meta: { title: '角色权限' }
+        },
+        {
           path: 'versions',
           name: 'Versions',
           component: () => import('@/views/Versions.vue'),

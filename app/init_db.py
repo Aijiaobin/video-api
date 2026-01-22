@@ -9,27 +9,40 @@ def init_permissions(db: Session):
     """初始化权限"""
     permissions_data = [
         # 分享权限
-        {"name": "share:create", "display_name": "创建分享", "group": "share"},
-        {"name": "share:delete", "display_name": "删除分享", "group": "share"},
-        {"name": "share:audit", "display_name": "审核分享", "group": "share"},
-        {"name": "share:manage", "display_name": "管理分享", "group": "share"},
+        {"name": "share:create", "display_name": "创建分享", "group": "share", "description": "允许用户提交新的分享链接"},
+        {"name": "share:edit", "display_name": "编辑分享", "group": "share", "description": "允许编辑分享信息"},
+        {"name": "share:delete", "display_name": "删除分享", "group": "share", "description": "允许删除分享"},
+        {"name": "share:audit", "display_name": "审核分享", "group": "share", "description": "允许审核待审核的分享"},
+        {"name": "share:scrape", "display_name": "触发刮削", "group": "share", "description": "允许触发元数据刮削"},
+        {"name": "share:reparse", "display_name": "重新解析", "group": "share", "description": "允许重新解析分享链接"},
+        {"name": "share:manage", "display_name": "管理分享", "group": "share", "description": "完整的分享管理权限"},
         # 用户权限
-        {"name": "user:view", "display_name": "查看用户", "group": "user"},
-        {"name": "user:manage", "display_name": "管理用户", "group": "user"},
-        {"name": "user:delete", "display_name": "删除用户", "group": "user"},
+        {"name": "user:view", "display_name": "查看用户", "group": "user", "description": "允许查看用户列表和详情"},
+        {"name": "user:create", "display_name": "创建用户", "group": "user", "description": "允许创建新用户"},
+        {"name": "user:edit", "display_name": "编辑用户", "group": "user", "description": "允许编辑用户信息"},
+        {"name": "user:delete", "display_name": "删除用户", "group": "user", "description": "允许删除用户"},
+        {"name": "user:manage", "display_name": "管理用户", "group": "user", "description": "完整的用户管理权限"},
+        # 角色权限
+        {"name": "role:view", "display_name": "查看角色", "group": "role", "description": "允许查看角色列表"},
+        {"name": "role:create", "display_name": "创建角色", "group": "role", "description": "允许创建新角色"},
+        {"name": "role:edit", "display_name": "编辑角色", "group": "role", "description": "允许编辑角色信息"},
+        {"name": "role:delete", "display_name": "删除角色", "group": "role", "description": "允许删除角色"},
+        {"name": "role:assign", "display_name": "分配角色", "group": "role", "description": "允许为用户分配角色"},
+        # 数据统计权限
+        {"name": "stats:view", "display_name": "查看统计", "group": "stats", "description": "允许查看数据统计"},
+        {"name": "stats:export", "display_name": "导出数据", "group": "stats", "description": "允许导出统计数据"},
         # 系统权限
-        {"name": "system:config", "display_name": "系统配置", "group": "system"},
-        {"name": "system:version", "display_name": "版本管理", "group": "system"},
-        {"name": "system:announcement", "display_name": "公告管理", "group": "system"},
-        {"name": "system:stats", "display_name": "数据统计", "group": "system"},
+        {"name": "system:config", "display_name": "系统配置", "group": "system", "description": "允许修改系统配置"},
+        {"name": "system:version", "display_name": "版本管理", "group": "system", "description": "允许管理APP版本"},
+        {"name": "system:announcement", "display_name": "公告管理", "group": "system", "description": "允许管理系统公告"},
     ]
-    
+
     for perm_data in permissions_data:
         existing = db.query(Permission).filter(Permission.name == perm_data["name"]).first()
         if not existing:
             perm = Permission(**perm_data)
             db.add(perm)
-    
+
     db.commit()
     print("✓ 权限初始化完成")
 

@@ -1,6 +1,6 @@
 """用户管理API（管理员）：用户列表、用户详情、禁用/启用、角色分配等"""
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
@@ -109,11 +109,11 @@ async def list_users(
 ):
     """
     获取用户列表（管理员）
-    
+
     支持分页、关键词搜索、用户类型筛选、状态筛选
     """
     query = db.query(User)
-    
+
     # 关键词搜索
     if keyword:
         query = query.filter(
@@ -124,24 +124,24 @@ async def list_users(
                 User.phone.ilike(f"%{keyword}%")
             )
         )
-    
+
     # 用户类型筛选
     if user_type:
         query = query.filter(User.user_type == user_type)
-    
+
     # 状态筛选
     if is_active is not None:
         query = query.filter(User.is_active == is_active)
-    
+
     # 统计总数
     total = query.count()
-    
+
     # 分页查询
     users = query.order_by(User.created_at.desc()) \
         .offset((page - 1) * page_size) \
         .limit(page_size) \
         .all()
-    
+
     return UserListResponse(
         total=total,
         page=page,
@@ -163,7 +163,7 @@ async def get_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
-    
+
     return UserDetail(
         id=user.id,
         username=user.username,
@@ -199,7 +199,7 @@ async def update_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
-    
+
     # 检查邮箱唯一性
     if update_data.email and update_data.email != user.email:
         if db.query(User).filter(User.email == update_data.email).first():
@@ -207,7 +207,7 @@ async def update_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="邮箱已被使用"
             )
-    
+
     # 检查手机号唯一性
     if update_data.phone and update_data.phone != user.phone:
         if db.query(User).filter(User.phone == update_data.phone).first():
@@ -215,15 +215,15 @@ async def update_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="手机号已被使用"
             )
-    
+
     # 更新字段
     update_dict = update_data.model_dump(exclude_unset=True)
     for field, value in update_dict.items():
         setattr(user, field, value)
-    
+
     db.commit()
     db.refresh(user)
-    
+
     return UserDetail(
         id=user.id,
         username=user.username,
@@ -258,16 +258,16 @@ async def disable_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
-    
+
     if user.id == current_admin.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="不能禁用自己"
         )
-    
+
     user.is_active = False
     db.commit()
-    
+
     return {"message": "用户已禁用"}
 
 
@@ -284,12 +284,221 @@ async def enable_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
-    
+
     user.is_active = True
     db.commit()
-    
+
     return {"message": "用户已启用"}
 
+
+
+
+# ========== 角色管理 ==========
+@router.get("/roles", response_model=List[RoleDetail], summary="获取角色列表")
+async def list_roles(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """获取所有角色列表（包含权限）"""
+    roles = db.query(Role).all()
+    return [
+        RoleDetail(
+            id=role.id,
+            name=role.name,
+            display_name=role.display_name,
+            description=role.description,
+            is_system=role.is_system,
+            permissions=[
+                PermissionBase(
+                    id=perm.id,
+                    name=perm.name,
+                    display_name=perm.display_name,
+                    description=perm.description,
+                    group=perm.group
+                ) for perm in role.permissions
+            ]
+        ) for role in roles
+    ]
+
+
+@router.post("/roles", response_model=RoleDetail, summary="创建角色")
+async def create_role(
+    role_data: RoleCreate,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """创建新角色（管理员）"""
+    # 检查角色名是否已存在
+    if db.query(Role).filter(Role.name == role_data.name).first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="角色名已存在"
+        )
+
+    new_role = Role(
+        name=role_data.name,
+        display_name=role_data.display_name,
+        description=role_data.description,
+        is_system=False
+    )
+
+    db.add(new_role)
+    db.commit()
+    db.refresh(new_role)
+
+    return RoleDetail(
+        id=new_role.id,
+        name=new_role.name,
+        display_name=new_role.display_name,
+        description=new_role.description,
+        is_system=new_role.is_system,
+        permissions=[]
+    )
+
+
+@router.put("/roles/{role_id}", response_model=RoleDetail, summary="更新角色")
+async def update_role(
+    role_id: int,
+    role_data: RoleCreate,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """更新角色信息（管理员）"""
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="角色不存在"
+        )
+
+    if role.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="系统角色不能修改"
+        )
+
+    # 检查角色名是否已被其他角色使用
+    if role_data.name != role.name:
+        if db.query(Role).filter(Role.name == role_data.name).first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="角色名已存在"
+            )
+
+    role.name = role_data.name
+    role.display_name = role_data.display_name
+    role.description = role_data.description
+
+    db.commit()
+    db.refresh(role)
+
+    return RoleDetail(
+        id=role.id,
+        name=role.name,
+        display_name=role.display_name,
+        description=role.description,
+        is_system=role.is_system,
+        permissions=[
+            PermissionBase(
+                id=perm.id,
+                name=perm.name,
+                display_name=perm.display_name,
+                description=perm.description,
+                group=perm.group
+            ) for perm in role.permissions
+        ]
+    )
+
+
+@router.delete("/roles/{role_id}", summary="删除角色")
+async def delete_role(
+    role_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """删除角色（管理员）"""
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="角色不存在"
+        )
+
+    if role.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="系统角色不能删除"
+        )
+
+    db.delete(role)
+    db.commit()
+
+    return {"message": "角色已删除"}
+
+
+# ========== 权限管理 ==========
+@router.get("/permissions", response_model=List[PermissionBase], summary="获取权限列表")
+async def list_permissions(
+    group: Optional[str] = Query(None, description="权限分组筛选"),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """获取所有权限列表（管理员）"""
+    query = db.query(Permission)
+
+    if group:
+        query = query.filter(Permission.group == group)
+
+    permissions = query.order_by(Permission.group, Permission.name).all()
+
+    return [
+        PermissionBase(
+            id=perm.id,
+            name=perm.name,
+            display_name=perm.display_name,
+            description=perm.description,
+            group=perm.group
+        ) for perm in permissions
+    ]
+
+
+@router.post("/roles/{role_id}/permissions", summary="分配权限给角色")
+async def assign_permissions_to_role(
+    role_id: int,
+    permission_ids: List[int],
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """为角色分配权限（管理员）"""
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="角色不存在"
+        )
+
+    if role.is_system:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="系统角色不能修改权限"
+        )
+
+    # 获取权限
+    permissions = db.query(Permission).filter(Permission.id.in_(permission_ids)).all()
+    if len(permissions) != len(permission_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="部分权限不存在"
+        )
+
+    # 更新角色权限
+    role.permissions = permissions
+    db.commit()
+
+    return {
+        "message": "权限分配成功",
+        "permissions": [p.name for p in permissions]
+    }
 
 @router.post("/{user_id}/reset-password", summary="重置用户密码")
 async def reset_user_password(
@@ -305,10 +514,10 @@ async def reset_user_password(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
-    
+
     user.password_hash = get_password_hash(password_data.new_password)
     db.commit()
-    
+
     return {"message": "密码已重置"}
 
 
@@ -326,7 +535,7 @@ async def assign_roles(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
-    
+
     # 获取角色
     roles = db.query(Role).filter(Role.id.in_(roles_data.role_ids)).all()
     if len(roles) != len(roles_data.role_ids):
@@ -334,11 +543,11 @@ async def assign_roles(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="部分角色不存在"
         )
-    
+
     # 更新用户角色
     user.roles = roles
     db.commit()
-    
+
     return {"message": "角色分配成功", "roles": [r.name for r in roles]}
 
 
@@ -355,16 +564,16 @@ async def delete_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
-    
+
     if user.id == current_admin.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="不能删除自己"
         )
-    
+
     # 软删除：禁用用户
     user.is_active = False
     db.commit()
-    
+
     return {"message": "用户已删除"}
 

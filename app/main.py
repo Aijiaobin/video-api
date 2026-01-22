@@ -6,7 +6,7 @@ import os
 
 from .database import engine, Base
 from .api import metadata, shares
-from .api import auth, admin_users, admin_versions, admin_system, admin_shares, admin_stats
+from .api import auth, admin_users, admin_versions, admin_system, admin_shares, admin_stats, admin_roles
 from .init_db import init_db
 
 # 创建数据库表并初始化数据
@@ -44,6 +44,7 @@ app.include_router(auth.router, prefix="/api")
 
 # 注册路由 - 管理后台API
 app.include_router(admin_users.router, prefix="/api")
+app.include_router(admin_roles.router, prefix="/api")
 app.include_router(admin_versions.router, prefix="/api")
 app.include_router(admin_system.router, prefix="/api")
 app.include_router(admin_shares.router, prefix="/api")

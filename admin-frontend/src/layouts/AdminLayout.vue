@@ -20,27 +20,32 @@
             <el-icon><DataAnalysis /></el-icon>
             <template #title>仪表盘</template>
           </el-menu-item>
-          
+
           <el-menu-item index="/users">
             <el-icon><User /></el-icon>
             <template #title>用户管理</template>
           </el-menu-item>
-          
+
+          <el-menu-item index="/roles">
+            <el-icon><Lock /></el-icon>
+            <template #title>角色权限</template>
+          </el-menu-item>
+
           <el-menu-item index="/shares">
             <el-icon><Share /></el-icon>
             <template #title>分享管理</template>
           </el-menu-item>
-          
+
           <el-menu-item index="/versions">
             <el-icon><Upload /></el-icon>
             <template #title>版本管理</template>
           </el-menu-item>
-          
+
           <el-menu-item index="/announcements">
             <el-icon><Bell /></el-icon>
             <template #title>公告管理</template>
           </el-menu-item>
-          
+
           <el-menu-item index="/configs">
             <el-icon><Setting /></el-icon>
             <template #title>系统配置</template>

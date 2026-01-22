@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"  # 忽略额外的环境变量字段
 
 
 @lru_cache()
