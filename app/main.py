@@ -7,9 +7,16 @@ import os
 from .database import engine, Base
 from .api import metadata, shares
 from .api import auth, admin_users, admin_versions, admin_system, admin_shares, admin_stats
+from .init_db import init_db
 
-# 创建数据库表
+# 创建数据库表并初始化数据
 Base.metadata.create_all(bind=engine)
+
+# 初始化默认数据（权限、角色、管理员账号）
+try:
+    init_db()
+except Exception as e:
+    print(f"数据库初始化警告: {e}")
 
 app = FastAPI(
     title="Video Share API",
