@@ -8,9 +8,16 @@ from .database import engine, Base
 from .api import metadata, shares
 from .api import auth, admin_users, admin_versions, admin_system, admin_shares, admin_stats
 from .init_db import init_db
+from .migrations import run_migrations
 
 # 创建数据库表并初始化数据
 Base.metadata.create_all(bind=engine)
+
+# 运行数据库迁移（自动执行SQL迁移脚本）
+try:
+    run_migrations()
+except Exception as e:
+    print(f"数据库迁移警告: {e}")
 
 # 初始化默认数据（权限、角色、管理员账号）
 try:

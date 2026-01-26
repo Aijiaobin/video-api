@@ -14,6 +14,7 @@ class CleanResult:
     year: Optional[int] = None  # 提取的年份
     season_number: Optional[int] = None  # 提取的季号
     resolution: Optional[str] = None  # 分辨率
+    tmdb_id: Optional[int] = None  # 提取的 TMDB ID
     extra_info: Optional[Dict] = None  # 其他提取的信息
 
 
@@ -93,6 +94,13 @@ class TitleCleaner:
         r'[（\(](\d{4})[）\)]',  # (2026) 或 （2026）
         r'[\.\s](\d{4})[\.\s]',  # .2026. 或 空格2026空格
     ]
+
+    # TMDB ID 提取模式
+    TMDB_ID_PATTERNS = [
+        r'\{tmdb[:\s]+(\d+)\}',  # {tmdb 156201} 或 {tmdb:156201}
+        r'\[tmdb[:\s]+(\d+)\]',  # [tmdb 156201] 或 [tmdb:156201]
+        r'tmdb[:\s]+(\d+)',      # tmdb 156201 或 tmdb:156201
+    ]
     
     # 电影合集关键词
     COLLECTION_KEYWORDS = ['合集', '全集', '系列', '部电影', '部.电影']
@@ -105,50 +113,56 @@ class TitleCleaner:
     def clean(self, raw_title: str) -> CleanResult:
         """
         清洗标题
-        
+
         示例:
         - "44.散华礼弥 [SumiSora&MAI] [Ma10p_2160p]" -> "散华礼弥"
         - "剑来第二季4K高码附带第一季" -> "剑来"
         - "《国漫》仙逆" -> "仙逆"
         - "轧戏（2026）4K" -> "轧戏"
         - "张国荣电影合集（1980-2003）" -> "张国荣电影合集（1980-2003）" (保留，类型为movie_collection)
+        - "滚滚红尘 {tmdb 156201}" -> "滚滚红尘" (提取 tmdb_id=156201)
         """
         if not raw_title:
             return CleanResult(clean_title="", share_type="movie")
-        
+
         title = raw_title.strip()
-        
-        # 1. 判断分享类型
+
+        # 1. 提取 TMDB ID（在清洗前提取）
+        tmdb_id = self._extract_tmdb_id(title)
+
+        # 2. 判断分享类型
         share_type = self._detect_share_type(title)
-        
-        # 2. 提取年份
+
+        # 3. 提取年份
         year = self._extract_year(title)
-        
-        # 3. 提取季号
+
+        # 4. 提取季号
         season_number = self._extract_season_number(title)
-        
-        # 4. 提取分辨率
+
+        # 5. 提取分辨率
         resolution = self._extract_resolution(title)
-        
-        # 5. 如果是电影合集，保留原标题（只做基本清理）
+
+        # 6. 如果是电影合集，保留原标题（只做基本清理）
         if share_type == "movie_collection":
             clean_title = self._basic_clean(title)
             return CleanResult(
                 clean_title=clean_title,
                 share_type=share_type,
                 year=year,
-                resolution=resolution
+                resolution=resolution,
+                tmdb_id=tmdb_id
             )
-        
-        # 6. 清洗标题
+
+        # 7. 清洗标题
         clean_title = self._deep_clean(title)
-        
+
         return CleanResult(
             clean_title=clean_title,
             share_type=share_type,
             year=year,
             season_number=season_number,
-            resolution=resolution
+            resolution=resolution,
+            tmdb_id=tmdb_id
         )
     
     def _detect_share_type(self, title: str) -> str:
@@ -174,6 +188,14 @@ class TitleCleaner:
                 year = int(match.group(1))
                 if 1900 <= year <= 2100:
                     return year
+        return None
+
+    def _extract_tmdb_id(self, title: str) -> Optional[int]:
+        """提取 TMDB ID"""
+        for pattern in self.TMDB_ID_PATTERNS:
+            match = re.search(pattern, title, re.IGNORECASE)
+            if match:
+                return int(match.group(1))
         return None
     
     def _extract_season_number(self, title: str) -> Optional[int]:
@@ -207,7 +229,11 @@ class TitleCleaner:
         """深度清洗（用于 TV 和单部电影）"""
         result = title
 
-        # 0. 先处理特殊格式：如果标题包含中文名和英文名，优先提取中文名
+        # 0. 先移除 TMDB ID 标签（在其他清洗前）
+        for pattern in self.TMDB_ID_PATTERNS:
+            result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+
+        # 1. 处理特殊格式：如果标题包含中文名和英文名，优先提取中文名
         # 例如: "民国惊魂录[4K·高码·60帧].Chronicles.of..." -> "民国惊魂录"
         chinese_match = re.match(r'^([A-Z]?[\u4e00-\u9fa5]+[\d\u4e00-\u9fa5]*)', result)
         if chinese_match:
@@ -217,30 +243,30 @@ class TitleCleaner:
                 # 提取纯中文标题部分
                 result = chinese_part
 
-        # 1. 移除序号前缀
+        # 2. 移除序号前缀
         for pattern in self.PREFIX_PATTERNS:
             result = re.sub(pattern, '', result)
 
-        # 2. 移除所有干扰模式
+        # 3. 移除所有干扰模式
         for pattern in self.REMOVE_PATTERNS:
             result = re.sub(pattern, '', result, flags=re.IGNORECASE)
 
-        # 3. 移除季号信息
+        # 4. 移除季号信息
         for pattern in self.SEASON_PATTERNS:
             result = re.sub(pattern, '', result, flags=re.IGNORECASE)
 
-        # 4. 移除年份括号
+        # 5. 移除年份括号
         result = re.sub(r'[（\(]\d{4}[）\)]', '', result)
 
-        # 5. 移除英文技术后缀（点号分隔的英文单词）
+        # 6. 移除英文技术后缀（点号分隔的英文单词）
         # 例如: "民国惊魂录.Chronicles.of.the.Republic" -> "民国惊魂录"
         result = re.sub(r'\.[A-Za-z][A-Za-z0-9\.\-\']+$', '', result)
 
-        # 6. 清理多余空格和符号
+        # 7. 清理多余空格和符号
         result = re.sub(r'[\s_\-\.·]+', ' ', result)
         result = re.sub(r'^[\s\-_\.·&]+|[\s\-_\.·&]+$', '', result)
 
-        # 7. 如果结果为空或太短，尝试从原标题提取
+        # 8. 如果结果为空或太短，尝试从原标题提取
         if len(result.strip()) < 2:
             # 尝试提取第一个中文词组
             match = re.search(r'[\u4e00-\u9fa5]{2,}', title)

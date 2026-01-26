@@ -98,6 +98,9 @@ class ShareLink(Base):
     # 标题相关
     raw_title = Column(String(500))  # 原始标题（网盘文件夹名）
     clean_title = Column(String(255))  # 清洗后标题（用于刮削）
+    manual_title = Column(String(255))  # 手动修正的标题（优先级高于clean_title）
+    manual_tmdb_id = Column(Integer)  # 手动指定的TMDB ID（优先级高于自动提取）
+    extracted_tmdb_id = Column(Integer)  # 从标题中提取的TMDB ID
 
     # 分享类型: tv(剧集), movie(单部电影), movie_collection(电影合集)
     share_type = Column(String(50), default="tv")

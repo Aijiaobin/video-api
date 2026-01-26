@@ -101,13 +101,20 @@ async def parse_and_update_share(share_id: int, share_url: str, password: str, d
 
             db.commit()
 
+            # 保存提取的 TMDB ID
+            extracted_tmdb_id = result.get("tmdb_id")
+            if extracted_tmdb_id:
+                share.extracted_tmdb_id = extracted_tmdb_id
+
+            db.commit()
+
             # 刮削元数据
             clean_title = result.get("clean_title", "")
             share_type = result.get("share_type", "tv")
 
             if clean_title and share_type != "movie_collection":
                 # TV 或单部电影：刮削整体
-                await scrape_share_metadata(db, share, clean_title, share_type, result.get("year"))
+                await scrape_share_metadata_legacy(db, share, clean_title, share_type, result.get("year"))
             elif share_type == "movie_collection":
                 # 电影合集：刮削每个视频文件
                 await scrape_collection_files(db, share)
@@ -120,8 +127,8 @@ async def parse_and_update_share(share_id: int, share_url: str, password: str, d
         db.close()
 
 
-async def scrape_share_metadata(db: Session, share: ShareLink, clean_title: str, share_type: str, year: int = None):
-    """刮削分享的元数据（TV剧集或单部电影）"""
+async def scrape_share_metadata_legacy(db: Session, share: ShareLink, clean_title: str, share_type: str, year: int = None):
+    """刮削分享的元数据（TV剧集或单部电影）- 旧版本，用于 parse_and_update_share"""
     try:
         # 根据分享类型确定媒体类型
         media_type = "tv" if share_type == "tv" else "movie"
@@ -140,6 +147,68 @@ async def scrape_share_metadata(db: Session, share: ShareLink, clean_title: str,
         print(f"Scrape metadata error: {e}")
         import traceback
         traceback.print_exc()
+
+
+async def scrape_share_metadata(share_id: int):
+    """
+    重新刮削分享的元数据（从 share_id 调用）
+
+    刮削优先级：
+    1. 使用 manual_tmdb_id（如果设置）
+    2. 使用 extracted_tmdb_id（从标题提取）
+    3. 使用 manual_title 或 clean_title 搜索TMDB
+    """
+    from ..database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        share = db.query(ShareLink).filter(ShareLink.id == share_id).first()
+        if not share:
+            print(f"Share {share_id} not found")
+            return
+
+        tmdb_service = TMDBService(db)
+        metadata = None
+
+        # 根据分享类型确定媒体类型
+        media_type = "tv" if share.share_type == "tv" else "movie"
+
+        # 优先级1: 使用 manual_tmdb_id
+        if share.manual_tmdb_id:
+            print(f"Using manual_tmdb_id: {share.manual_tmdb_id}")
+            metadata = await tmdb_service.get_or_fetch(share.manual_tmdb_id, media_type)
+
+        # 优先级2: 使用 extracted_tmdb_id
+        elif share.extracted_tmdb_id:
+            print(f"Using extracted_tmdb_id: {share.extracted_tmdb_id}")
+            metadata = await tmdb_service.get_or_fetch(share.extracted_tmdb_id, media_type)
+
+        # 优先级3: 使用标题搜索
+        else:
+            # 优先使用 manual_title，否则使用 clean_title
+            search_title = share.manual_title or share.clean_title
+            if not search_title:
+                print(f"No title available for share {share_id}")
+                return
+
+            print(f"Searching TMDB with title: {search_title}")
+            metadata = await tmdb_service.search_and_cache(search_title, None, media_type)
+
+        # 更新分享的元数据
+        if metadata:
+            share.media_id = metadata.id
+            share.poster_url = metadata.poster_url
+            db.commit()
+            print(f"Scraped metadata for share {share_id}: {metadata.title}, poster: {metadata.poster_url}")
+        else:
+            print(f"No metadata found for share {share_id}")
+
+    except Exception as e:
+        print(f"Scrape metadata error for share {share_id}: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        db.close()
 
 
 async def scrape_collection_files(db: Session, share: ShareLink):

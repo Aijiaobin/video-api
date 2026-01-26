@@ -44,6 +44,17 @@ class ShareAuditRequest(BaseModel):
     reason: Optional[str] = Field(None, description="拒绝原因")
 
 
+class EditTitleRequest(BaseModel):
+    """编辑标题请求"""
+    manual_title: Optional[str] = Field(None, description="手动修正的标题")
+    manual_tmdb_id: Optional[int] = Field(None, description="手动指定的TMDB ID")
+
+
+class RescrapeRequest(BaseModel):
+    """重新刮削请求"""
+    force: bool = Field(False, description="是否强制刮削（即使已有元数据）")
+
+
 class BatchAuditRequest(BaseModel):
     """批量审核请求"""
     share_ids: List[int] = Field(..., description="分享ID列表")
@@ -400,6 +411,108 @@ async def reparse_share(
     return {"message": "已提交重新解析任务", "share_id": share_id}
 
 
+@admin_router.put("/{share_id}/edit-title", summary="编辑分享标题")
+async def edit_share_title(
+    share_id: int,
+    request: EditTitleRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    编辑分享标题和TMDB ID（手动修正）
+
+    权限说明：
+    - VIP用户：可以编辑自己提交的分享
+    - 管理员：可以编辑所有分享
+
+    参数：
+    - manual_title: 手动修正的标题（优先级高于自动清洗的标题）
+    - manual_tmdb_id: 手动指定的TMDB ID（优先级高于自动提取的ID）
+    """
+    share = db.query(ShareLink).filter(ShareLink.id == share_id).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="分享不存在")
+
+    # 权限检查：VIP只能编辑自己的分享，管理员可以编辑所有分享
+    if current_user.user_type == "vip":
+        if share.submitter_id != current_user.id:
+            raise HTTPException(status_code=403, detail="只能编辑自己提交的分享")
+    elif current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="需要VIP或管理员权限")
+
+    # 更新手动修正的标题和TMDB ID
+    if request.manual_title is not None:
+        share.manual_title = request.manual_title.strip() if request.manual_title else None
+
+    if request.manual_tmdb_id is not None:
+        share.manual_tmdb_id = request.manual_tmdb_id
+
+    db.commit()
+
+    return {
+        "message": "标题编辑成功",
+        "share_id": share_id,
+        "manual_title": share.manual_title,
+        "manual_tmdb_id": share.manual_tmdb_id
+    }
+
+
+@admin_router.post("/{share_id}/rescrape", summary="重新刮削元数据")
+async def rescrape_share_metadata(
+    share_id: int,
+    request: RescrapeRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    重新刮削分享的元数据（从TMDB获取）
+
+    权限说明：
+    - VIP用户：可以刮削自己提交的分享
+    - 管理员：可以刮削所有分享
+
+    参数：
+    - force: 是否强制刮削（即使已有元数据）
+
+    刮削优先级：
+    1. 使用 manual_tmdb_id（如果设置）
+    2. 使用 extracted_tmdb_id（从标题提取）
+    3. 使用 manual_title 或 clean_title 搜索TMDB
+    """
+    share = db.query(ShareLink).filter(ShareLink.id == share_id).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="分享不存在")
+
+    # 权限检查：VIP只能刮削自己的分享，管理员可以刮削所有分享
+    if current_user.user_type == "vip":
+        if share.submitter_id != current_user.id:
+            raise HTTPException(status_code=403, detail="只能刮削自己提交的分享")
+    elif current_user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="需要VIP或管理员权限")
+
+    # 检查是否已有元数据
+    if share.media_id and not request.force:
+        return {
+            "message": "分享已有元数据，如需重新刮削请设置 force=true",
+            "share_id": share_id,
+            "media_id": share.media_id
+        }
+
+    # 添加后台刮削任务
+    from .shares import scrape_share_metadata
+    background_tasks.add_task(
+        scrape_share_metadata,
+        share.id
+    )
+
+    return {
+        "message": "已提交重新刮削任务",
+        "share_id": share_id,
+        "force": request.force
+    }
+
+
 @admin_router.post("/reparse-all", summary="重新解析所有分享")
 async def reparse_all_shares(
     background_tasks: BackgroundTasks,
@@ -492,6 +605,9 @@ def _share_to_dict(share: ShareLink, include_submitter: bool = False) -> dict:
         "password": share.password,
         "raw_title": share.raw_title,
         "clean_title": share.clean_title,
+        "manual_title": share.manual_title,
+        "manual_tmdb_id": share.manual_tmdb_id,
+        "extracted_tmdb_id": share.extracted_tmdb_id,
         "share_type": share.share_type,
         "poster_url": share.poster_url,
         "file_count": share.file_count,
@@ -500,14 +616,14 @@ def _share_to_dict(share: ShareLink, include_submitter: bool = False) -> dict:
         "status": share.status,
         "created_at": share.created_at.isoformat() if share.created_at else None
     }
-    
+
     if include_submitter and share.submitter:
         result["submitter"] = {
             "id": share.submitter.id,
             "username": share.submitter.username,
             "nickname": share.submitter.nickname
         }
-    
+
     return result
 
 
