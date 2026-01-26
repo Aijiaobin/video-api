@@ -74,12 +74,13 @@
         <el-table-column prop="created_at" label="创建时间" width="170">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <template v-if="row.status === 'pending'">
               <el-button size="small" type="success" @click="handleAudit(row, 'approved')">通过</el-button>
               <el-button size="small" type="danger" @click="handleAudit(row, 'rejected')">拒绝</el-button>
             </template>
+            <el-button size="small" type="primary" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" type="warning" @click="handleReparse(row)">解析</el-button>
             <el-button size="small" @click="handleViewDetail(row)">详情</el-button>
             <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
@@ -121,6 +122,38 @@
         <el-descriptions-item label="提交者">{{ currentShare?.submitter?.nickname || currentShare?.submitter?.username || '-' }}</el-descriptions-item>
         <el-descriptions-item label="创建时间" :span="2">{{ formatDate(currentShare?.created_at) }}</el-descriptions-item>
       </el-descriptions>
+    </el-dialog>
+
+    <!-- 编辑标题对话框 -->
+    <el-dialog v-model="editDialogVisible" title="编辑分享标题" width="600px">
+      <el-form :model="editForm" label-width="120px">
+        <el-form-item label="原始标题">
+          <el-input v-model="editForm.raw_title" disabled />
+        </el-form-item>
+        <el-form-item label="自动清洗标题">
+          <el-input v-model="editForm.clean_title" disabled />
+        </el-form-item>
+        <el-form-item label="手动修正标题">
+          <el-input v-model="editForm.manual_title" placeholder="留空则使用自动清洗的标题" clearable />
+          <div style="font-size: 12px; color: #909399; margin-top: 4px;">
+            手动修正的标题优先级高于自动清洗的标题
+          </div>
+        </el-form-item>
+        <el-form-item label="提取的TMDB ID">
+          <el-input v-model="editForm.extracted_tmdb_id" disabled />
+        </el-form-item>
+        <el-form-item label="手动指定TMDB ID">
+          <el-input-number v-model="editForm.manual_tmdb_id" :min="0" placeholder="留空则使用提取的ID" style="width: 100%;" />
+          <div style="font-size: 12px; color: #909399; margin-top: 4px;">
+            手动指定的TMDB ID优先级最高，可用于修正错误的刮削结果
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editLoading" @click="handleSaveEdit">保存</el-button>
+        <el-button type="success" :loading="rescrapeLoading" @click="handleRescrapeAfterEdit">保存并重新刮削</el-button>
+      </template>
     </el-dialog>
 
     <!-- 批量导入对话框 -->
@@ -195,6 +228,19 @@ const selectedIds = ref<number[]>([])
 const detailDialogVisible = ref(false)
 const currentShare = ref<ShareItem | null>(null)
 const reparseLoading = ref(false)
+
+// 编辑相关
+const editDialogVisible = ref(false)
+const editLoading = ref(false)
+const rescrapeLoading = ref(false)
+const editForm = reactive({
+  id: 0,
+  raw_title: '',
+  clean_title: '',
+  manual_title: '',
+  extracted_tmdb_id: null as number | null,
+  manual_tmdb_id: null as number | null
+})
 
 // 批量导入相关
 const importDialogVisible = ref(false)
@@ -278,6 +324,54 @@ async function handleReparse(row: ShareItem) {
     ElMessage.success('已提交重新解析任务')
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '操作失败')
+  }
+}
+
+// 编辑功能
+function handleEdit(row: ShareItem) {
+  editForm.id = row.id
+  editForm.raw_title = row.raw_title || ''
+  editForm.clean_title = row.clean_title || ''
+  editForm.manual_title = row.manual_title || ''
+  editForm.extracted_tmdb_id = row.extracted_tmdb_id || null
+  editForm.manual_tmdb_id = row.manual_tmdb_id || null
+  editDialogVisible.value = true
+}
+
+async function handleSaveEdit() {
+  editLoading.value = true
+  try {
+    await shareApi.editTitle(editForm.id, {
+      manual_title: editForm.manual_title || null,
+      manual_tmdb_id: editForm.manual_tmdb_id || null
+    })
+    ElMessage.success('保存成功')
+    editDialogVisible.value = false
+    loadData()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '保存失败')
+  } finally {
+    editLoading.value = false
+  }
+}
+
+async function handleRescrapeAfterEdit() {
+  rescrapeLoading.value = true
+  try {
+    // 先保存编辑
+    await shareApi.editTitle(editForm.id, {
+      manual_title: editForm.manual_title || null,
+      manual_tmdb_id: editForm.manual_tmdb_id || null
+    })
+    // 再重新刮削
+    await shareApi.rescrape(editForm.id, { force: true })
+    ElMessage.success('保存成功，已提交重新刮削任务')
+    editDialogVisible.value = false
+    loadData()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '操作失败')
+  } finally {
+    rescrapeLoading.value = false
   }
 }
 

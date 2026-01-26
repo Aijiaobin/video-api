@@ -108,6 +108,9 @@ export interface ShareItem {
   password: string
   raw_title: string
   clean_title: string
+  manual_title: string
+  manual_tmdb_id: number | null
+  extracted_tmdb_id: number | null
   share_type: string
   poster_url: string
   file_count: number
@@ -161,7 +164,11 @@ export const shareApi = {
   batchImport: (shares: BatchShareItem[]) => http.post<BatchImportResponse>('/user/shares/batch', { shares }),
   reparse: (id: number) => http.post(`/admin/shares/${id}/reparse`),
   reparseAll: () => http.post('/admin/shares/reparse-all'),
-  reparseUnparsed: (threads: number = 5) => http.post('/admin/shares/reparse-unparsed', null, { params: { threads } })
+  reparseUnparsed: (threads: number = 5) => http.post('/admin/shares/reparse-unparsed', null, { params: { threads } }),
+  editTitle: (id: number, data: { manual_title?: string | null; manual_tmdb_id?: number | null }) =>
+    http.put(`/admin/shares/${id}/edit-title`, data),
+  rescrape: (id: number, data: { force?: boolean }) =>
+    http.post(`/admin/shares/${id}/rescrape`, data)
 }
 
 // ========== 公告管理 ==========

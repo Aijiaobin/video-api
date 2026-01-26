@@ -97,9 +97,11 @@ class TitleCleaner:
 
     # TMDB ID 提取模式
     TMDB_ID_PATTERNS = [
-        r'\{tmdb[:\s]+(\d+)\}',  # {tmdb 156201} 或 {tmdb:156201}
-        r'\[tmdb[:\s]+(\d+)\]',  # [tmdb 156201] 或 [tmdb:156201]
-        r'tmdb[:\s]+(\d+)',      # tmdb 156201 或 tmdb:156201
+        r'\{tmdb[:\s]+(\d+)\}',      # {tmdb 156201} 或 {tmdb:156201}
+        r'\[tmdb[:\s]+(\d+)\]',      # [tmdb 156201] 或 [tmdb:156201]
+        r'\[tmdbid[=:\s]+(\d+)\]',   # [tmdbid=18674] 或 [tmdbid:18674]
+        r'\{tmdbid[=:\s]+(\d+)\}',   # {tmdbid=18674} 或 {tmdbid:18674}
+        r'tmdb[id]*[=:\s]+(\d+)',    # tmdb 156201 或 tmdbid=18674
     ]
     
     # 电影合集关键词
