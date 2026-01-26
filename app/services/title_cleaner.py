@@ -231,9 +231,15 @@ class TitleCleaner:
         """深度清洗（用于 TV 和单部电影）"""
         result = title
 
+        # 调试日志
+        print(f"[DEBUG] _deep_clean input: {result}")
+
         # 0. 先移除 TMDB ID 标签（在其他清洗前）
         for pattern in self.TMDB_ID_PATTERNS:
+            before = result
             result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+            if before != result:
+                print(f"[DEBUG] Removed TMDB ID with pattern {pattern}: {before} -> {result}")
 
         # 1. 处理特殊格式：如果标题包含中文名和英文名，优先提取中文名
         # 例如: "民国惊魂录[4K·高码·60帧].Chronicles.of..." -> "民国惊魂录"
@@ -244,6 +250,7 @@ class TitleCleaner:
             if re.search(r'^[A-Z]?[\u4e00-\u9fa5]+[\d\u4e00-\u9fa5]*[\[\[【\.]', result):
                 # 提取纯中文标题部分
                 result = chinese_part
+                print(f"[DEBUG] Extracted Chinese part: {result}")
 
         # 2. 移除序号前缀
         for pattern in self.PREFIX_PATTERNS:
@@ -275,6 +282,7 @@ class TitleCleaner:
             if match:
                 result = match.group(0)
 
+        print(f"[DEBUG] _deep_clean output: {result}")
         return result.strip()
     
     def _chinese_to_number(self, s: str) -> int:
