@@ -75,24 +75,30 @@ class MigrationManager:
         try:
             with open(sql_file, 'r', encoding='utf-8') as f:
                 sql_content = f.read()
-            
+
+            # 检查是否为MySQL语法的迁移文件，如果是则跳过
+            if "ENGINE=InnoDB" in sql_content or "AUTO_INCREMENT" in sql_content:
+                print(f"  ⚠️  跳过MySQL语法的迁移文件: {sql_file.name}")
+                print(f"  ℹ️  该文件为MySQL语法，当前使用SQLite数据库，已通过SQLAlchemy自动创建表结构")
+                return True
+
             # 分割SQL语句（按分号分割，忽略注释）
             statements = []
             current_statement = []
-            
+
             for line in sql_content.split('\n'):
                 # 跳过注释行
                 stripped = line.strip()
                 if stripped.startswith('--') or not stripped:
                     continue
-                
+
                 current_statement.append(line)
-                
+
                 # 如果行以分号结尾，表示一条语句结束
                 if stripped.endswith(';'):
                     statements.append('\n'.join(current_statement))
                     current_statement = []
-            
+
             # 执行每条SQL语句
             with engine.connect() as conn:
                 for statement in statements:
@@ -106,9 +112,9 @@ class MigrationManager:
                             else:
                                 raise
                 conn.commit()
-            
+
             return True
-            
+
         except Exception as e:
             print(f"执行SQL文件失败 {sql_file.name}: {e}")
             import traceback
