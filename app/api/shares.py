@@ -247,11 +247,11 @@ async def scrape_collection_files(db: Session, share: ShareLink):
 async def create_share(
     share: ShareLinkCreate,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_permission("share:create")),  # ✅ 需要登录和创建权限
+    current_user: Optional[User] = Depends(get_current_user_optional),  # 允许匿名提交
     db: Session = Depends(get_db)
 ):
     """
-    提交分享链接（需要登录）
+    提交分享链接（允许匿名提交）
 
     请求体:
     - drive_type: 网盘类型 (tianyi=天翼云盘, aliyun=阿里云盘, quark=夸克网盘)
@@ -296,12 +296,12 @@ async def create_share(
         # 如果已存在，直接返回现有的
         return _to_response(existing, db)
 
-    # ✅ 创建分享并记录提交者
+    # 创建分享，如果用户已登录则记录提交者ID
     db_share = ShareLink(
         drive_type=share.drive_type,
         share_url=cleaned_url,
         password=password,
-        submitter_id=current_user.id  # ✅ 记录提交者ID
+        submitter_id=current_user.id if current_user else None  # 匿名提交时为 None
     )
     db.add(db_share)
     db.commit()

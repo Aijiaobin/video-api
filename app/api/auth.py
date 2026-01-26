@@ -26,12 +26,14 @@ async def register(
 ):
     """
     用户注册
-    
+
     - **username**: 用户名（3-50字符，唯一）
     - **password**: 密码（6-100字符）
     - **email**: 邮箱（可选，唯一）
     - **phone**: 手机号（可选，唯一）
     - **nickname**: 昵称（可选）
+
+    注册成功后默认为 VIP 用户
     """
     # 检查用户名是否已存在
     if db.query(User).filter(User.username == user_data.username).first():
@@ -39,7 +41,7 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="用户名已存在"
         )
-    
+
     # 检查邮箱是否已存在
     if user_data.email:
         if db.query(User).filter(User.email == user_data.email).first():
@@ -47,7 +49,7 @@ async def register(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="邮箱已被注册"
             )
-    
+
     # 检查手机号是否已存在
     if user_data.phone:
         if db.query(User).filter(User.phone == user_data.phone).first():
@@ -55,27 +57,22 @@ async def register(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="手机号已被注册"
             )
-    
-    # 创建用户
+
+    # 创建用户（默认为 VIP 用户）
     user = User(
         username=user_data.username,
         password_hash=get_password_hash(user_data.password),
         email=user_data.email,
         phone=user_data.phone,
         nickname=user_data.nickname or user_data.username,
-        user_type="user",
+        user_type="vip",  # 默认为 VIP 用户
         is_active=True
     )
-    
-    # 分配默认角色
-    default_role = db.query(Role).filter(Role.name == "user").first()
-    if default_role:
-        user.roles.append(default_role)
-    
+
     db.add(user)
     db.commit()
     db.refresh(user)
-    
+
     return user
 
 
