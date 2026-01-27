@@ -139,6 +139,16 @@
             手动修正的标题优先级高于自动清洗的标题
           </div>
         </el-form-item>
+        <el-form-item label="媒体类型">
+          <el-select v-model="editForm.share_type" placeholder="选择媒体类型" style="width: 100%;">
+            <el-option label="剧集 (tv)" value="tv" />
+            <el-option label="电影 (movie)" value="movie" />
+            <el-option label="电影合集" value="movie_collection" />
+          </el-select>
+          <div style="font-size: 12px; color: #909399; margin-top: 4px;">
+            决定使用 TMDB 的 movie 还是 tv 接口搜索
+          </div>
+        </el-form-item>
         <el-form-item label="提取的TMDB ID">
           <el-input v-model="editForm.extracted_tmdb_id" disabled />
         </el-form-item>
@@ -238,6 +248,7 @@ const editForm = reactive({
   raw_title: '',
   clean_title: '',
   manual_title: '',
+  share_type: '',
   extracted_tmdb_id: null as number | null,
   manual_tmdb_id: null as number | null
 })
@@ -264,6 +275,11 @@ function getStatusName(status: string) {
 function getStatusType(status: string) {
   const map: Record<string, string> = { active: 'success', pending: 'warning', rejected: 'danger', deleted: 'info', expired: 'info' }
   return map[status] || ''
+}
+
+function getShareTypeName(type: string) {
+  const map: Record<string, string> = { tv: '剧集 (tv)', movie: '电影 (movie)', movie_collection: '电影合集' }
+  return map[type] || type || '未知'
 }
 
 function formatDate(date: string) { return date ? dayjs(date).format('YYYY-MM-DD HH:mm:ss') : '' }
@@ -333,6 +349,7 @@ function handleEdit(row: ShareItem) {
   editForm.raw_title = row.raw_title || ''
   editForm.clean_title = row.clean_title || ''
   editForm.manual_title = row.manual_title || ''
+  editForm.share_type = row.share_type || 'tv'
   editForm.extracted_tmdb_id = row.extracted_tmdb_id || null
   editForm.manual_tmdb_id = row.manual_tmdb_id || null
   editDialogVisible.value = true
@@ -343,7 +360,8 @@ async function handleSaveEdit() {
   try {
     await shareApi.editTitle(editForm.id, {
       manual_title: editForm.manual_title || null,
-      manual_tmdb_id: editForm.manual_tmdb_id || null
+      manual_tmdb_id: editForm.manual_tmdb_id || null,
+      share_type: editForm.share_type || null
     })
     ElMessage.success('保存成功')
     editDialogVisible.value = false
@@ -361,7 +379,8 @@ async function handleRescrapeAfterEdit() {
     // 先保存编辑
     await shareApi.editTitle(editForm.id, {
       manual_title: editForm.manual_title || null,
-      manual_tmdb_id: editForm.manual_tmdb_id || null
+      manual_tmdb_id: editForm.manual_tmdb_id || null,
+      share_type: editForm.share_type || null
     })
     // 再重新刮削
     await shareApi.rescrape(editForm.id, { force: true })

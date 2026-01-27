@@ -48,6 +48,7 @@ class EditTitleRequest(BaseModel):
     """编辑标题请求"""
     manual_title: Optional[str] = Field(None, description="手动修正的标题")
     manual_tmdb_id: Optional[int] = Field(None, description="手动指定的TMDB ID")
+    share_type: Optional[str] = Field(None, description="媒体类型: movie/tv/movie_collection")
 
 
 class RescrapeRequest(BaseModel):
@@ -447,13 +448,20 @@ async def edit_share_title(
     if request.manual_tmdb_id is not None:
         share.manual_tmdb_id = request.manual_tmdb_id
 
+    if request.share_type is not None:
+        # 验证 share_type 值
+        if request.share_type and request.share_type not in ["movie", "tv", "movie_collection"]:
+            raise HTTPException(status_code=400, detail="share_type 必须是 movie、tv 或 movie_collection")
+        share.share_type = request.share_type if request.share_type else share.share_type
+
     db.commit()
 
     return {
         "message": "标题编辑成功",
         "share_id": share_id,
         "manual_title": share.manual_title,
-        "manual_tmdb_id": share.manual_tmdb_id
+        "manual_tmdb_id": share.manual_tmdb_id,
+        "share_type": share.share_type
     }
 
 

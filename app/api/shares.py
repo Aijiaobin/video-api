@@ -157,6 +157,8 @@ async def scrape_share_metadata(share_id: int):
     1. 使用 manual_tmdb_id（如果设置）
     2. 使用 extracted_tmdb_id（从标题提取）
     3. 使用 manual_title 或 clean_title 搜索TMDB
+
+    媒体类型：直接使用 share_type 字段（可通过编辑页面手动修改）
     """
     from ..database import SessionLocal
 
@@ -170,8 +172,9 @@ async def scrape_share_metadata(share_id: int):
         tmdb_service = TMDBService(db)
         metadata = None
 
-        # 根据分享类型确定媒体类型
+        # 根据 share_type 确定媒体类型（share_type 可通过编辑页面手动修改）
         media_type = "tv" if share.share_type == "tv" else "movie"
+        print(f"Using media_type: {media_type} (share_type={share.share_type})")
 
         # 优先级1: 使用 manual_tmdb_id
         if share.manual_tmdb_id:

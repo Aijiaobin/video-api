@@ -165,7 +165,7 @@ export const shareApi = {
   reparse: (id: number) => http.post(`/admin/shares/${id}/reparse`),
   reparseAll: () => http.post('/admin/shares/reparse-all'),
   reparseUnparsed: (threads: number = 5) => http.post('/admin/shares/reparse-unparsed', null, { params: { threads } }),
-  editTitle: (id: number, data: { manual_title?: string | null; manual_tmdb_id?: number | null }) =>
+  editTitle: (id: number, data: { manual_title?: string | null; manual_tmdb_id?: number | null; share_type?: string | null }) =>
     http.put(`/admin/shares/${id}/edit-title`, data),
   rescrape: (id: number, data: { force?: boolean }) =>
     http.post(`/admin/shares/${id}/rescrape`, data)
