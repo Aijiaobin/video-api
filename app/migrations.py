@@ -82,6 +82,11 @@ class MigrationManager:
                 print(f"  ℹ️  该文件为MySQL语法，当前使用SQLite数据库，已通过SQLAlchemy自动创建表结构")
                 return True
 
+            # 检查是否包含 PRAGMA 语句（需要用原生 sqlite3 执行）
+            if "PRAGMA" in sql_content:
+                print(f"  ℹ️  检测到 PRAGMA 语句，使用原生 sqlite3 执行")
+                return self._execute_with_sqlite3(sql_file, sql_content)
+
             # 分割SQL语句（按分号分割，忽略注释）
             statements = []
             current_statement = []
@@ -117,6 +122,24 @@ class MigrationManager:
 
         except Exception as e:
             print(f"执行SQL文件失败 {sql_file.name}: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _execute_with_sqlite3(self, sql_file: Path, sql_content: str) -> bool:
+        """使用原生 sqlite3 执行SQL（支持 PRAGMA 等特殊语句）"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # 执行整个脚本
+            cursor.executescript(sql_content)
+
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"  ❌ sqlite3 执行失败: {e}")
             import traceback
             traceback.print_exc()
             return False
