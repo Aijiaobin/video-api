@@ -55,24 +55,28 @@ class TMDBService:
         metadata = self._save_to_db(details, media_type)
         return metadata
     
-    def get_by_tmdb_id(self, tmdb_id: int) -> Optional[MediaMetadata]:
-        """根据 TMDB ID 获取缓存"""
-        return self.db.query(MediaMetadata).filter(
+    def get_by_tmdb_id(self, tmdb_id: int, media_type: str = None) -> Optional[MediaMetadata]:
+        """根据 TMDB ID 获取缓存（需同时匹配 media_type）"""
+        query = self.db.query(MediaMetadata).filter(
             MediaMetadata.tmdb_id == tmdb_id
-        ).first()
-    
+        )
+        # TMDB 的 movie 和 tv 是两套独立的 ID 系统，必须同时匹配 media_type
+        if media_type:
+            query = query.filter(MediaMetadata.media_type == media_type)
+        return query.first()
+
     async def get_or_fetch(self, tmdb_id: int, media_type: str = "movie") -> Optional[MediaMetadata]:
         """获取或从 TMDB 拉取"""
-        # 先查缓存
-        cached = self.get_by_tmdb_id(tmdb_id)
+        # 先查缓存（必须同时匹配 tmdb_id 和 media_type）
+        cached = self.get_by_tmdb_id(tmdb_id, media_type)
         if cached:
             return cached
-        
+
         # 从 TMDB 获取
         details = await self._get_tmdb_details(tmdb_id, media_type)
         if not details:
             return None
-        
+
         return self._save_to_db(details, media_type)
     
     def _search_local(self, title: str, year: Optional[int], media_type: str) -> Optional[MediaMetadata]:
@@ -129,13 +133,14 @@ class TMDBService:
     
     def _save_to_db(self, details: dict, media_type: str) -> MediaMetadata:
         """保存到数据库"""
-        # 检查是否已存在
+        # 检查是否已存在（必须同时匹配 tmdb_id 和 media_type）
         existing = self.db.query(MediaMetadata).filter(
-            MediaMetadata.tmdb_id == details["id"]
+            MediaMetadata.tmdb_id == details["id"],
+            MediaMetadata.media_type == media_type
         ).first()
         if existing:
             return existing
-        
+
         # 解析数据
         if media_type == "movie":
             title = details.get("title", "")
@@ -147,9 +152,9 @@ class TMDBService:
             original_title = details.get("original_name")
             year = int(details.get("first_air_date", "0000")[:4]) if details.get("first_air_date") else None
             runtime = details.get("episode_run_time", [None])[0] if details.get("episode_run_time") else None
-        
+
         genres = [g["name"] for g in details.get("genres", [])]
-        
+
         metadata = MediaMetadata(
             tmdb_id=details["id"],
             media_type=media_type,
@@ -166,7 +171,7 @@ class TMDBService:
             total_seasons=details.get("number_of_seasons"),
             total_episodes=details.get("number_of_episodes")
         )
-        
+
         self.db.add(metadata)
         self.db.commit()
         self.db.refresh(metadata)
