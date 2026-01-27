@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, BigInteger, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, BigInteger, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from ..database import Base
@@ -7,9 +7,13 @@ from ..database import Base
 class MediaMetadata(Base):
     """影视元数据缓存表 - 从 TMDB 刮削的数据"""
     __tablename__ = "media_metadata"
+    # TMDB 的 movie 和 tv 是两套独立的 ID 系统，同一个 tmdb_id 可能对应不同的 media_type
+    __table_args__ = (
+        UniqueConstraint('tmdb_id', 'media_type', name='uq_tmdb_id_media_type'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    tmdb_id = Column(Integer, unique=True, index=True, nullable=False)
+    tmdb_id = Column(Integer, index=True, nullable=False)  # 移除 unique=True
     media_type = Column(String(20), nullable=False)  # movie, tv
     title = Column(String(255), nullable=False)
     original_title = Column(String(255))
