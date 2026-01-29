@@ -23,19 +23,28 @@ class TitleCleaner:
     
     # 需要移除的模式（按优先级排序）
     REMOVE_PATTERNS = [
-        # 压制组标签 [xxx] 或 【xxx】
+        # 网站标识和压制组标签（优先处理）
+        r'〖[^〗]*〗',  # 匹配中文书名号内容（如：〖海绵小站 www.hmxz.org〗）
+        r'〔[^〕]*〕',  # 匹配中文六角括号内容
         r'\[[^\]]*\]',  # 匹配所有方括号内容
         r'【[^】]*】',  # 匹配所有中文方括号内容
+        r'《[^》]*》(?=\s)',  # 匹配书名号后跟空格的内容（如：《国漫》）
+
+        # 发布组标识（在文件名末尾的 -组名 格式）
+        r'-[A-Za-z0-9]+$',  # 匹配末尾的发布组标识（如：-ParkHD）
+        r'@[A-Za-z0-9]+',  # 匹配 @ 开头的发布组标识
 
         # 分辨率和编码信息
         r'(?:Ma)?10p[_\-]?\d{3,4}p?',  # Ma10p_2160p
+        r'\d{1,2}bit',  # 10bit, 8bit（位深信息）
         r'\d{3,4}[pP]',  # 1080p, 2160p, 720P
         r'4[kK]',  # 4K, 4k
         r'(?:UHD|FHD|HD|SD)(?![a-zA-Z])',  # UHD/FHD/HD/SD 但不匹配单词中的
         r'(?:HEVC|AVC|H\.?264|H\.?265|x264|x265|AV1)',
-        r'(?:HDR|HDR10\+?|DV|Dolby\s*Vision)',
+        r'(?:HDR10\+|HDR10|HDR|DV|Dolby\s*Vision)',  # HDR10+ 必须在 HDR 之前匹配
         r'(?:REMUX|WEB-?DL|WEBRip|BluRay|BDRip|DVDRip|HDTV)',
-        r'(?:DTS[\d\.]*|AAC[\d\.]*|FLAC|AC3|TrueHD|Atmos|DDP[\d\.]*)',
+        r'(?:DTS[\d\.\-]*(?:HD)?(?:\.MA)?|AAC[\d\.]*|FLAC|AC3|TrueHD|Atmos|DDP[\d\.]*)',  # 音频编码（增强匹配 DTS-HD.MA）
+        r'(?:5\.1|7\.1|2\.0)',  # 声道信息
         r'HQ',  # 高质量标记
         r'\d+帧',  # 60帧
         r'\d+fps',  # 60fps
@@ -221,25 +230,32 @@ class TitleCleaner:
     
     def _basic_clean(self, title: str) -> str:
         """基本清理（用于电影合集）"""
-        # 只移除压制组标签和技术信息
+        # 移除所有技术信息和年份信息
         result = title
-        for pattern in self.REMOVE_PATTERNS[:6]:  # 只用前几个模式
+
+        # 移除所有干扰模式
+        for pattern in self.REMOVE_PATTERNS:
             result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+
+        # 移除年份范围（如 1972-1990）
+        result = re.sub(r'\d{4}-\d{4}', '', result)
+
+        # 移除点号分隔的单个年份
+        result = re.sub(r'[\.\s]\d{4}[\.\s]', ' ', result)
+
+        # 清理多余空格和符号
+        result = re.sub(r'[\s_\-\.·]+', ' ', result)
+        result = re.sub(r'^[\s\-_\.·&]+|[\s\-_\.·&]+$', '', result)
+
         return result.strip()
     
     def _deep_clean(self, title: str) -> str:
         """深度清洗（用于 TV 和单部电影）"""
         result = title
 
-        # 调试日志
-        print(f"[DEBUG] _deep_clean input: {result}")
-
         # 0. 先移除 TMDB ID 标签（在其他清洗前）
         for pattern in self.TMDB_ID_PATTERNS:
-            before = result
             result = re.sub(pattern, '', result, flags=re.IGNORECASE)
-            if before != result:
-                print(f"[DEBUG] Removed TMDB ID with pattern {pattern}: {before} -> {result}")
 
         # 1. 处理特殊格式：如果标题包含中文名和英文名，优先提取中文名
         # 例如: "民国惊魂录[4K·高码·60帧].Chronicles.of..." -> "民国惊魂录"
@@ -250,7 +266,6 @@ class TitleCleaner:
             if re.search(r'^[A-Z]?[\u4e00-\u9fa5]+[\d\u4e00-\u9fa5]*[\[\[【\.]', result):
                 # 提取纯中文标题部分
                 result = chinese_part
-                print(f"[DEBUG] Extracted Chinese part: {result}")
 
         # 2. 移除序号前缀
         for pattern in self.PREFIX_PATTERNS:
@@ -264,8 +279,9 @@ class TitleCleaner:
         for pattern in self.SEASON_PATTERNS:
             result = re.sub(pattern, '', result, flags=re.IGNORECASE)
 
-        # 5. 移除年份括号
-        result = re.sub(r'[（\(]\d{4}[）\)]', '', result)
+        # 5. 移除年份（括号格式和点号分隔格式）
+        result = re.sub(r'[（\(]\d{4}[）\)]', '', result)  # 移除 (2026) 或 （2026）
+        result = re.sub(r'[\.\s]\d{4}[\.\s]', ' ', result)  # 移除 .1980. 或 空格1980空格
 
         # 6. 移除英文技术后缀（点号分隔的英文单词）
         # 例如: "民国惊魂录.Chronicles.of.the.Republic" -> "民国惊魂录"
@@ -282,7 +298,6 @@ class TitleCleaner:
             if match:
                 result = match.group(0)
 
-        print(f"[DEBUG] _deep_clean output: {result}")
         return result.strip()
     
     def _chinese_to_number(self, s: str) -> int:

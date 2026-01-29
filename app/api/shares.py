@@ -71,6 +71,7 @@ async def parse_and_update_share(share_id: int, share_url: str, password: str, d
             share.share_type = result.get("share_type", "tv")
             share.share_code = result.get("share_code", "")
             share.file_count = result.get("file_count", 0)
+            share.status = "active"  # 解析成功，设置为活跃状态
 
             # 处理分享人
             sharer_info = result.get("sharer_info", {})
@@ -118,8 +119,23 @@ async def parse_and_update_share(share_id: int, share_url: str, password: str, d
             elif share_type == "movie_collection":
                 # 电影合集：刮削每个视频文件
                 await scrape_collection_files(db, share)
+        else:
+            # 解析失败，标记状态
+            share.status = "parse_failed"
+            share.reject_reason = "分享链接解析失败，可能是链接已失效、需要访问码或网络问题"
+            db.commit()
+            print(f"Parse failed for share {share_id}: {share_url}")
 
     except Exception as e:
+        # 异常情况也标记为解析失败
+        try:
+            share = db.query(ShareLink).filter(ShareLink.id == share_id).first()
+            if share:
+                share.status = "parse_failed"
+                share.reject_reason = f"解析异常: {str(e)[:200]}"
+                db.commit()
+        except:
+            pass
         print(f"Parse share error: {e}")
         import traceback
         traceback.print_exc()
@@ -328,6 +344,7 @@ async def list_shares(
     page_size: int = Query(20, ge=1, le=100),
     drive_type: Optional[str] = None,
     share_type: Optional[str] = None,
+    status: Optional[str] = None,
     keyword: Optional[str] = None,
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -340,6 +357,7 @@ async def list_shares(
     - page_size: 每页数量 (1-100)
     - drive_type: 网盘类型筛选 (tianyi/aliyun/quark)
     - share_type: 分享类型筛选 (tv/movie/movie_collection)
+    - status: 状态筛选 (active/pending/rejected/expired/deleted/parse_failed)
     - keyword: 关键词搜索 (搜索标题)
 
     权限说明:
@@ -359,6 +377,7 @@ async def list_shares(
         - raw_title: 原始标题
         - clean_title: 清洗后标题 (APP显示用)
         - share_type: 分享类型 (tv=剧集, movie=电影, movie_collection=电影合集)
+        - status: 状态 (active/pending/rejected/expired/deleted/parse_failed)
         - poster_url: 海报URL (TMDB)
         - file_count: 文件数量
         - view_count: 浏览次数
@@ -376,7 +395,11 @@ async def list_shares(
         query = query.filter(ShareLink.submitter_id == current_user.id)
     else:
         # 管理员：查看所有分享（包括待审核的）
-        query = query.filter(ShareLink.status == "active")
+        # 如果指定了状态筛选，则按状态筛选，否则只显示 active
+        if status:
+            query = query.filter(ShareLink.status == status)
+        else:
+            query = query.filter(ShareLink.status == "active")
 
     if drive_type:
         query = query.filter(ShareLink.drive_type == drive_type)
@@ -606,3 +629,77 @@ def _to_response(share: ShareLink, db: Session, include_files: bool = False) -> 
         media_info=media_info,
         files=files
     )
+
+
+@router.delete("/batch/parse-failed")
+async def delete_parse_failed_shares(
+    current_user: User = Depends(require_permission("admin")),
+    db: Session = Depends(get_db)
+):
+    """
+    批量删除解析失败的分享记录（仅管理员）
+
+    返回:
+    - deleted_count: 删除的记录数量
+    """
+    try:
+        # 查询所有解析失败的分享
+        failed_shares = db.query(ShareLink).filter(
+            ShareLink.status == "parse_failed"
+        ).all()
+
+        deleted_count = len(failed_shares)
+
+        # 删除记录（级联删除关联的文件记录）
+        for share in failed_shares:
+            db.delete(share)
+
+        db.commit()
+
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "message": f"成功删除 {deleted_count} 条解析失败的记录"
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+
+
+@router.get("/stats/by-status")
+async def get_shares_stats_by_status(
+    current_user: User = Depends(require_permission("admin")),
+    db: Session = Depends(get_db)
+):
+    """
+    获取各状态的分享统计（仅管理员）
+
+    返回:
+    - active: 活跃数量
+    - pending: 待审核数量
+    - rejected: 已拒绝数量
+    - expired: 已失效数量
+    - deleted: 已删除数量
+    - parse_failed: 解析失败数量
+    """
+    from sqlalchemy import func
+
+    stats = db.query(
+        ShareLink.status,
+        func.count(ShareLink.id).label('count')
+    ).group_by(ShareLink.status).all()
+
+    result = {
+        "active": 0,
+        "pending": 0,
+        "rejected": 0,
+        "expired": 0,
+        "deleted": 0,
+        "parse_failed": 0
+    }
+
+    for status, count in stats:
+        if status in result:
+            result[status] = count
+
+    return result
